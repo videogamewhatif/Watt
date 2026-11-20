@@ -1,0 +1,52 @@
+# Configuración del entorno local de Supabase CLI (`supabase start`).
+# En un proyecto alojado, replica la sección [auth] desde el panel:
+# Authentication → URL Configuration y Email Templates.
+project_id = "wattalis"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+
+# Buzón local: los correos de prueba (confirmación, recuperación) se ven en
+# http://127.0.0.1:54324 y nunca salen a Internet.
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/confirm", "http://127.0.0.1:3000/auth/confirm"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = false
+max_frequency = "1m0s"
+
+[auth.email.template.confirmation]
+subject = "Confirma tu cuenta de Wattalis"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Crea una nueva contraseña en Wattalis"
+content_path = "./supabase/templates/recovery.html"
