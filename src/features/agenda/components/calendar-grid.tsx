@@ -1,6 +1,5 @@
 "use client";
 
-import { PawPrint } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { STATUS_STYLE, StatusBadge } from "@/components/ui/status-badge";
 import type { AgendaAppointment, AgendaTimeOff } from "@/lib/database.types";
@@ -278,12 +277,6 @@ function DayColumn({
                 <span className={`block truncate text-sm font-semibold ${cancelled ? "line-through" : ""}`}>{a.contact_name}</span>
                 <span className="block truncate text-xs text-ink-soft">
                   {a.service_name}
-                  {a.pet_name ? (
-                    <>
-                      {" · "}
-                      <PawPrint className="inline size-3" aria-hidden /> {a.pet_name}
-                    </>
-                  ) : null}
                 </span>
                 {showProfessional ? (
                   <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted">

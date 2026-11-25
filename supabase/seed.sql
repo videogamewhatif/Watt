@@ -11,7 +11,7 @@
 -- Cuentas (contraseña para todas: Wattalis-demo-2026):
 --   admin@clinica-arboleda.test        Administración · Clínica Arboleda
 --   recepcion@clinica-arboleda.test    Recepción · Clínica Arboleda
---                                      y Administración · Veterinaria Patitas
+--                                      y Administración · Centro de Nutrición Vital
 --   ana.ruiz@clinica-arboleda.test     Profesional · Clínica Arboleda
 --   luis.herrera@consultorio.test      Administración + Profesional · Consultorio Dr. Herrera
 -- =============================================================================
@@ -26,7 +26,7 @@ declare
   -- Espacios
   o_clinic constant uuid := 'b0000000-0000-4000-8000-000000000001';
   o_indep  constant uuid := 'b0000000-0000-4000-8000-000000000002';
-  o_vet    constant uuid := 'b0000000-0000-4000-8000-000000000003';
+  o_nutri  constant uuid := 'b0000000-0000-4000-8000-000000000003';
   -- Profesionales
   p_ruiz   constant uuid := 'c0000000-0000-4000-8000-000000000001';
   p_salas  constant uuid := 'c0000000-0000-4000-8000-000000000002';
@@ -39,8 +39,8 @@ declare
   s_limpieza    constant uuid := 'd0000000-0000-4000-8000-000000000004';
   s_primera     constant uuid := 'd0000000-0000-4000-8000-000000000005';
   s_subsec      constant uuid := 'd0000000-0000-4000-8000-000000000006';
-  s_vet         constant uuid := 'd0000000-0000-4000-8000-000000000007';
-  s_vacuna      constant uuid := 'd0000000-0000-4000-8000-000000000008';
+  s_nutri       constant uuid := 'd0000000-0000-4000-8000-000000000007';
+  s_seg_nutri   constant uuid := 'd0000000-0000-4000-8000-000000000008';
   -- Contactos
   c_maria   constant uuid := 'e0000000-0000-4000-8000-000000000001';
   c_jose    constant uuid := 'e0000000-0000-4000-8000-000000000002';
@@ -65,7 +65,7 @@ begin
   -- ---------------------------------------------------------------------------
   -- Limpieza de una ejecución anterior (solo registros demo)
   -- ---------------------------------------------------------------------------
-  delete from public.organizations where id in (o_clinic, o_indep, o_vet);
+  delete from public.organizations where id in (o_clinic, o_indep, o_nutri);
   delete from auth.users where id in (u_laura, u_mario, u_ana, u_luis);
 
   select array_agg(d::date order by d) into w
@@ -110,33 +110,33 @@ begin
   insert into public.organizations (id, name, kind, timezone, created_by) values
     (o_clinic, 'Clínica Arboleda (demo)', 'clinic', tz, u_laura),
     (o_indep, 'Consultorio Dr. Herrera (demo)', 'independent', tz, u_luis),
-    (o_vet, 'Veterinaria Patitas (demo)', 'clinic', tz, u_mario);
+    (o_nutri, 'Centro de Nutrición Vital (demo)', 'clinic', tz, u_mario);
 
   insert into public.memberships (organization_id, user_id, role) values
     (o_clinic, u_laura, 'admin'),
     (o_clinic, u_mario, 'reception'),
     (o_clinic, u_ana, 'professional'),
     (o_indep, u_luis, 'admin'),
-    (o_vet, u_mario, 'admin');
+    (o_nutri, u_mario, 'admin');
 
   -- ---------------------------------------------------------------------------
-  -- Profesionales (Dr. Salas y MVZ Soto existen sin cuenta de acceso)
+  -- Profesionales (Dr. Salas y Lic. Soto existen sin cuenta de acceso)
   -- ---------------------------------------------------------------------------
   insert into public.professionals (id, organization_id, user_id, display_name, professional_type, specialty, color, phone) values
     (p_ruiz, o_clinic, u_ana, 'Dra. Ana Ruiz', 'medico', 'Medicina general', '#0f766e', null),
     (p_salas, o_clinic, null, 'Dr. Jorge Salas', 'dentista', 'Odontología general', '#7c3aed', '55 5010 2030'),
     (p_luis, o_indep, u_luis, 'Dr. Luis Herrera', 'medico', 'Medicina interna', '#b45309', null),
-    (p_soto, o_vet, null, 'MVZ Daniela Soto', 'veterinario', 'Pequeñas especies', '#be185d', null);
+    (p_soto, o_nutri, null, 'Lic. Daniela Soto', 'nutriologo', 'Nutrición clínica', '#be185d', null);
 
-  insert into public.services (id, organization_id, name, duration_minutes, description) values
-    (s_consulta, o_clinic, 'Consulta general', 30, null),
-    (s_seguimiento, o_clinic, 'Revisión de seguimiento', 20, 'Cita breve de control.'),
-    (s_valoracion, o_clinic, 'Valoración dental', 30, null),
-    (s_limpieza, o_clinic, 'Limpieza dental', 45, null),
-    (s_primera, o_indep, 'Consulta de primera vez', 45, null),
-    (s_subsec, o_indep, 'Consulta subsecuente', 30, null),
-    (s_vet, o_vet, 'Consulta veterinaria', 30, null),
-    (s_vacuna, o_vet, 'Vacunación', 15, null);
+  insert into public.services (id, organization_id, name, duration_minutes, description, price) values
+    (s_consulta, o_clinic, 'Consulta general', 30, null, 450),
+    (s_seguimiento, o_clinic, 'Revisión de seguimiento', 20, 'Cita breve de control.', 300),
+    (s_valoracion, o_clinic, 'Valoración dental', 30, null, 500),
+    (s_limpieza, o_clinic, 'Limpieza dental', 45, null, 700),
+    (s_primera, o_indep, 'Consulta de primera vez', 45, null, 900),
+    (s_subsec, o_indep, 'Consulta subsecuente', 30, null, 600),
+    (s_nutri, o_nutri, 'Consulta de nutrición', 45, null, 550),
+    (s_seg_nutri, o_nutri, 'Seguimiento nutricional', 30, null, 400);
 
   insert into public.professional_services (organization_id, professional_id, service_id) values
     (o_clinic, p_ruiz, s_consulta),
@@ -145,8 +145,8 @@ begin
     (o_clinic, p_salas, s_limpieza),
     (o_indep, p_luis, s_primera),
     (o_indep, p_luis, s_subsec),
-    (o_vet, p_soto, s_vet),
-    (o_vet, p_soto, s_vacuna);
+    (o_nutri, p_soto, s_nutri),
+    (o_nutri, p_soto, s_seg_nutri);
 
   -- Horarios semanales (horas locales). Ruiz y Herrera con horario partido.
   insert into public.availability_rules (organization_id, professional_id, weekday, start_time, end_time)
@@ -161,7 +161,7 @@ begin
   select o_indep, p_luis, d, t.s, t.e from generate_series(1, 5) d,
     (values (time '08:00', time '12:00'), (time '16:00', time '19:00')) t(s, e);
   insert into public.availability_rules (organization_id, professional_id, weekday, start_time, end_time)
-  select o_vet, p_soto, d, '10:00', '15:00' from generate_series(1, 6) d;
+  select o_nutri, p_soto, d, '10:00', '15:00' from generate_series(1, 6) d;
 
   -- ---------------------------------------------------------------------------
   -- Contactos (todos ficticios)
@@ -176,8 +176,8 @@ begin
     (c_elena, o_indep, 'Elena Vargas', '33 2000 0001', null, u_luis),
     (c_hector, o_indep, 'Héctor Morales', '33 2000 0002', 'hector.morales@correo.test', u_luis),
     (c_paty, o_indep, 'Patricia Ríos', null, 'paty.rios@correo.test', u_luis),
-    (c_andrea, o_vet, 'Andrea Flores', '55 3000 0001', null, u_mario),
-    (c_raul, o_vet, 'Raúl Domínguez', '55 3000 0002', null, u_mario);
+    (c_andrea, o_nutri, 'Andrea Flores', '55 3000 0001', null, u_mario),
+    (c_raul, o_nutri, 'Raúl Domínguez', '55 3000 0002', null, u_mario);
 
   -- ---------------------------------------------------------------------------
   -- Bloqueos
@@ -193,46 +193,46 @@ begin
   -- ---------------------------------------------------------------------------
   create temporary table demo_appts (
     org uuid, prof uuid, svc uuid, contact uuid, day date, at time, future_status public.appointment_status,
-    past_status public.appointment_status, pet text, by_user uuid
+    past_status public.appointment_status, by_user uuid
   ) on commit drop;
 
   insert into demo_appts values
     -- Día hábil anterior
-    (o_clinic, p_ruiz, s_consulta, c_maria, past1, '09:00', 'confirmed', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_seguimiento, c_carlos, past1, '10:00', 'confirmed', 'no_show', null, u_mario),
-    (o_clinic, p_salas, s_limpieza, c_jose, past1, '10:30', 'confirmed', 'attended', null, u_mario),
-    (o_indep, p_luis, s_subsec, c_elena, past1, '08:30', 'confirmed', 'attended', null, u_luis),
+    (o_clinic, p_ruiz, s_consulta, c_maria, past1, '09:00', 'confirmed', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_seguimiento, c_carlos, past1, '10:00', 'confirmed', 'no_show', u_mario),
+    (o_clinic, p_salas, s_limpieza, c_jose, past1, '10:30', 'confirmed', 'attended', u_mario),
+    (o_indep, p_luis, s_subsec, c_elena, past1, '08:30', 'confirmed', 'attended', u_luis),
     -- Primer día hábil (hoy, si es entre semana)
-    (o_clinic, p_ruiz, s_consulta, c_lupita, w[1], '09:00', 'confirmed', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_seguimiento, c_sofia, w[1], '09:30', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_consulta, c_ricardo, w[1], '10:30', 'confirmed', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_consulta, c_jose, w[1], '12:00', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_consulta, c_maria, w[1], '16:00', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_salas, s_valoracion, c_carlos, w[1], '10:00', 'confirmed', 'attended', null, u_mario),
-    (o_clinic, p_salas, s_limpieza, c_sofia, w[1], '11:00', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_salas, s_limpieza, c_ricardo, w[1], '17:00', 'pending', 'attended', null, u_mario),
-    (o_indep, p_luis, s_primera, c_hector, w[1], '09:00', 'confirmed', 'attended', null, u_luis),
-    (o_indep, p_luis, s_subsec, c_paty, w[1], '11:00', 'pending', 'attended', null, u_luis),
-    (o_indep, p_luis, s_subsec, c_elena, w[1], '16:30', 'pending', 'attended', null, u_luis),
-    (o_vet, p_soto, s_vet, c_andrea, w[1], '10:00', 'confirmed', 'attended', 'Firulais', u_mario),
-    (o_vet, p_soto, s_vacuna, c_andrea, w[1], '10:30', 'pending', 'attended', 'Michi', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_lupita, w[1], '09:00', 'confirmed', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_seguimiento, c_sofia, w[1], '09:30', 'pending', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_ricardo, w[1], '10:30', 'confirmed', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_jose, w[1], '12:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_maria, w[1], '16:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_salas, s_valoracion, c_carlos, w[1], '10:00', 'confirmed', 'attended', u_mario),
+    (o_clinic, p_salas, s_limpieza, c_sofia, w[1], '11:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_salas, s_limpieza, c_ricardo, w[1], '17:00', 'pending', 'attended', u_mario),
+    (o_indep, p_luis, s_primera, c_hector, w[1], '09:00', 'confirmed', 'attended', u_luis),
+    (o_indep, p_luis, s_subsec, c_paty, w[1], '11:00', 'pending', 'attended', u_luis),
+    (o_indep, p_luis, s_subsec, c_elena, w[1], '16:30', 'pending', 'attended', u_luis),
+    (o_nutri, p_soto, s_nutri, c_andrea, w[1], '10:00', 'confirmed', 'attended', u_mario),
+    (o_nutri, p_soto, s_seg_nutri, c_raul, w[1], '11:00', 'pending', 'attended', u_mario),
     -- Siguientes días hábiles
-    (o_clinic, p_ruiz, s_consulta, c_carlos, w[2], '09:00', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_consulta, c_lupita, w[2], '12:30', 'confirmed', 'attended', null, u_mario),
-    (o_clinic, p_ruiz, s_seguimiento, c_maria, w[2], '15:00', 'pending', 'attended', null, u_mario),
-    (o_clinic, p_salas, s_valoracion, c_jose, w[2], '12:00', 'pending', 'attended', null, u_mario),
-    (o_indep, p_luis, s_primera, c_paty, w[2], '08:00', 'pending', 'attended', null, u_luis),
-    (o_vet, p_soto, s_vet, c_raul, w[2], '11:00', 'pending', 'attended', 'Rocky', u_mario),
-    (o_clinic, p_ruiz, s_consulta, c_ricardo, w[3], '10:00', 'pending', 'attended', null, u_mario),
-    (o_indep, p_luis, s_subsec, c_hector, w[4], '17:00', 'pending', 'attended', null, u_luis);
+    (o_clinic, p_ruiz, s_consulta, c_carlos, w[2], '09:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_lupita, w[2], '12:30', 'confirmed', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_seguimiento, c_maria, w[2], '15:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_salas, s_valoracion, c_jose, w[2], '12:00', 'pending', 'attended', u_mario),
+    (o_indep, p_luis, s_primera, c_paty, w[2], '08:00', 'pending', 'attended', u_luis),
+    (o_nutri, p_soto, s_nutri, c_raul, w[2], '11:00', 'pending', 'attended', u_mario),
+    (o_clinic, p_ruiz, s_consulta, c_ricardo, w[3], '10:00', 'pending', 'attended', u_mario),
+    (o_indep, p_luis, s_subsec, c_hector, w[4], '17:00', 'pending', 'attended', u_luis);
 
   insert into public.appointments
-    (organization_id, professional_id, service_id, contact_id, starts_at, ends_at, status, pet_name, created_by)
+    (organization_id, professional_id, service_id, contact_id, starts_at, ends_at, status, created_by)
   select a.org, a.prof, a.svc, a.contact,
          (a.day + a.at) at time zone tz,
          (a.day + a.at) at time zone tz + make_interval(mins => s.duration_minutes),
          case when (a.day + a.at) at time zone tz < now() then a.past_status else a.future_status end,
-         a.pet, a.by_user
+         a.by_user
   from demo_appts a
   join public.services s on s.id = a.svc;
 

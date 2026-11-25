@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { Card, CardHeader } from "@/components/ui/layout";
 import { agendaHref } from "@/features/agenda/params";
 import { AccountLink, ActiveToggle, ProfessionalForm, ScheduleEditor, ServicesPicker, TimeOffManager } from "@/features/professionals/components";
+import { loadSchedule } from "@/features/professionals/queries";
 import { getAppContext } from "@/lib/session";
-import { addDays, formatShortDate, todayIn } from "@/lib/tz";
 
 export const metadata: Metadata = { title: "Profesional" };
 
@@ -17,14 +17,14 @@ export default async function ProfessionalPage({ params }: PageProps<"/profesion
   // RLS: si es de otro espacio o de otro profesional, simplemente no existe para esta cuenta.
   if (!professional) notFound();
 
-  const today = todayIn(ctx.workspace.timezone);
   const manage = ctx.can.manageCatalog;
-  const [{ data: types }, { data: services }, { data: links }, { data: rules }, { data: blocks }, members] = await Promise.all([
+  // El propio profesional también edita su horario y bloqueos (RLS lo permite).
+  const editSchedule = manage || professional.id === ctx.ownProfessionalId;
+  const [{ data: types }, { data: services }, { data: links }, { today, rules, blockItems }, members] = await Promise.all([
     ctx.supabase.from("professional_types").select("*").order("sort_order"),
     ctx.supabase.from("services").select("id, name, duration_minutes, active").eq("organization_id", ctx.workspace.id).order("name"),
     ctx.supabase.from("professional_services").select("service_id").eq("professional_id", id),
-    ctx.supabase.from("availability_rules").select("weekday, start_time, end_time").eq("professional_id", id),
-    ctx.supabase.rpc("agenda_time_off", { p_organization_id: ctx.workspace.id, p_from: today, p_to: addDays(today, 180), p_professional_id: id }),
+    loadSchedule(ctx, id),
     manage
       ? Promise.all([
           ctx.supabase.from("memberships").select("user_id").eq("organization_id", ctx.workspace.id),
@@ -50,16 +50,6 @@ export default async function ProfessionalPage({ params }: PageProps<"/profesion
   }
 
   const typeLabel = types?.find((t) => t.code === professional.professional_type)?.label ?? professional.professional_type;
-  const blockItems = (blocks ?? []).map((b) => {
-    const sameDay = b.local_start.slice(0, 10) === b.local_end.slice(0, 10);
-    const allDay = b.local_start.endsWith("00:00") && b.local_end.endsWith("00:00");
-    const label = allDay
-      ? `${formatShortDate(b.local_start.slice(0, 10))} – ${formatShortDate(addDays(b.local_end.slice(0, 10), -1))} (días completos)`
-      : sameDay
-        ? `${formatShortDate(b.local_start.slice(0, 10))}, ${b.local_start.slice(11)}–${b.local_end.slice(11)}`
-        : `${formatShortDate(b.local_start.slice(0, 10))} ${b.local_start.slice(11)} – ${formatShortDate(b.local_end.slice(0, 10))} ${b.local_end.slice(11)}`;
-    return { id: b.id, kind: b.kind, note: b.note, label };
-  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -104,14 +94,14 @@ export default async function ProfessionalPage({ params }: PageProps<"/profesion
       <Card>
         <CardHeader title="Horario semanal" />
         <div className="p-5">
-          <ScheduleEditor organizationId={ctx.workspace.id} professionalId={id} rules={rules ?? []} readOnly={!manage} />
+          <ScheduleEditor organizationId={ctx.workspace.id} professionalId={id} rules={rules} readOnly={!editSchedule} />
         </div>
       </Card>
 
       <Card>
         <CardHeader title="Bloqueos" description="Vacaciones, comida o ausencias puntuales." />
         <div className="p-5">
-          <TimeOffManager organizationId={ctx.workspace.id} professionalId={id} items={blockItems} today={today} readOnly={!manage} />
+          <TimeOffManager organizationId={ctx.workspace.id} professionalId={id} items={blockItems} today={today} readOnly={!editSchedule} />
         </div>
       </Card>
 

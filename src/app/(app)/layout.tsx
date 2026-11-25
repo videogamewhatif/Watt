@@ -2,6 +2,7 @@ import { DemoBanner } from "@/components/shell/demo-banner";
 import { UserMenu, WorkspaceSwitcher } from "@/components/shell/menus";
 import { BottomNav, SidebarNav } from "@/components/shell/nav";
 import { PracticeSwitcher } from "@/components/shell/practice-switcher";
+import { getPracticeContext } from "@/features/practice/queries";
 import { Wordmark } from "@/components/ui/layout";
 import { ToastProvider } from "@/components/ui/toast";
 import { navigationFor } from "@/lib/permissions";
@@ -10,8 +11,11 @@ import { getAppContext, getAuthUser } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAppContext();
-  const { demo } = await getAuthUser();
-  const items = navigationFor(ctx.role);
+  const [{ demo }, practice] = await Promise.all([getAuthUser(), getPracticeContext()]);
+  const items = navigationFor(ctx.role, { ownSchedule: Boolean(ctx.ownProfessionalId) });
+  // El área solo filtra a quien ve la agenda de todos; el rol Profesional ve la suya.
+  const showAreas = ctx.can.allAppointments && practice.areas.length > 0;
+  const activeArea = practice.areas.find((a) => a.key === practice.active) ?? (practice.areas.length === 1 ? practice.areas[0] : null);
   const active = { id: ctx.workspace.id, name: ctx.workspace.name, role: ctx.role };
   const options = ctx.workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role }));
 
@@ -20,24 +24,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
         Saltar al contenido
       </a>
-      <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr]">
-        <aside className="hidden border-r border-line bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
+      <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr] print:block">
+        <aside className="hidden print:hidden border-r border-line bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
           <div className="px-5 pt-5 pb-4">
             <Wordmark className="text-xl" />
           </div>
-          <div className="px-3 pb-4">
-            <PracticeSwitcher />
-          </div>
           <div className="flex-1 overflow-y-auto px-3">
-            <SidebarNav items={items} />
+            <SidebarNav
+              items={items}
+              areaSwitcher={showAreas ? <PracticeSwitcher areas={practice.areas} active={practice.active} /> : null}
+              areaColor={activeArea?.color ?? null}
+            />
           </div>
           <p className="px-5 py-4 text-xs text-muted">Zona horaria: {ctx.workspace.timezone.replace("_", " ")}</p>
         </aside>
         <div className="flex min-w-0 flex-col">
-          {demo ? <DemoBanner current={demo} personas={DEMO_PERSONAS} /> : null}
-          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur sm:px-5">
+          {demo ? (
+            <div className="print:hidden">
+              <DemoBanner current={demo} personas={DEMO_PERSONAS} />
+            </div>
+          ) : null}
+          <header className="sticky top-0 z-30 print:hidden flex items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur sm:px-5">
             <Wordmark className="text-lg md:hidden" />
-            <PracticeSwitcher className="w-32 md:hidden" />
+            {showAreas ? <PracticeSwitcher areas={practice.areas} active={practice.active} className="w-36 md:hidden" /> : null}
             <div className="min-w-0 flex-1">
               <WorkspaceSwitcher active={active} workspaces={options} />
             </div>

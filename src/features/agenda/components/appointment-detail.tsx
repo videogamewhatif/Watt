@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, CheckCheck, History, Mail, PawPrint, Phone, UserX, X } from "lucide-react";
+import { CalendarClock, Check, CheckCheck, History, Mail, Phone, UserX, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -41,7 +41,7 @@ function HistoryList({ entries, timezone }: { entries: HistoryEntry[]; timezone:
         return `Reprogramó de ${from} a ${to}${prof}`;
       }
       default:
-        return "Actualizó la nota o la mascota";
+        return "Actualizó la nota";
     }
   };
   return (
@@ -64,7 +64,6 @@ export function AppointmentDetail({ appointment: a, organizationId, timezone, to
   const end = splitLocal(a.local_end);
   const active = a.status === "pending" || a.status === "confirmed";
   const started = start.date < today || (start.date === today && minutesOf(start.time) <= nowMinutes);
-  const professional = professionals.find((p) => p.id === a.professional_id);
   const service = services.find((s) => s.id === a.service_id);
 
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -145,19 +144,12 @@ export function AppointmentDetail({ appointment: a, organizationId, timezone, to
               <span className="break-all">{a.contact_email}</span>
             </li>
           ) : null}
-          {a.pet_name ? (
-            <li className="flex items-center gap-2">
-              <PawPrint className="size-4 text-muted" aria-hidden />
-              Mascota: <strong>{a.pet_name}</strong>
-            </li>
-          ) : null}
         </ul>
         {a.notes && !editing ? <p className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm whitespace-pre-line">{a.notes}</p> : null}
         {editing ? (
           <DetailsEditor
             organizationId={organizationId}
             appointment={a}
-            usesPetName={Boolean(professional?.uses_pet_name)}
             onDone={(saved) => {
               setEditing(false);
               if (saved) onChanged("Cambios guardados.");
@@ -165,7 +157,7 @@ export function AppointmentDetail({ appointment: a, organizationId, timezone, to
           />
         ) : a.status !== "cancelled" ? (
           <Button size="sm" variant="ghost" className="mt-2 -ml-2" onClick={() => setEditing(true)}>
-            Editar nota{professional?.uses_pet_name ? " o mascota" : ""}
+            Editar nota
           </Button>
         ) : null}
       </section>
@@ -271,24 +263,18 @@ export function AppointmentDetail({ appointment: a, organizationId, timezone, to
 function DetailsEditor({
   organizationId,
   appointment,
-  usesPetName,
   onDone,
 }: {
   organizationId: string;
   appointment: AgendaAppointment;
-  usesPetName: boolean;
   onDone: (saved: boolean) => void;
 }) {
   const [notes, setNotes] = useState(appointment.notes ?? "");
-  const [petName, setPetName] = useState(appointment.pet_name ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
     <div className="mt-3 space-y-3">
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {usesPetName ? (
-        <Field label="Nombre de la mascota">{({ id }) => <Input id={id} value={petName} maxLength={80} onChange={(e) => setPetName(e.target.value)} />}</Field>
-      ) : null}
       <Field label="Nota administrativa" hint="No incluyas información clínica.">
         {({ id, describedBy }) => <Textarea id={id} aria-describedby={describedBy} rows={2} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />}
       </Field>
@@ -298,7 +284,7 @@ function DetailsEditor({
           pending={pending}
           onClick={() =>
             startTransition(async () => {
-              const result = await updateAppointmentDetails({ organizationId, appointmentId: appointment.id, notes, petName });
+              const result = await updateAppointmentDetails({ organizationId, appointmentId: appointment.id, notes });
               if (result.ok) onDone(true);
               else setError(result.error);
             })

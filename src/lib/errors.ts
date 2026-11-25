@@ -39,6 +39,21 @@ const MESSAGES: Record<string, string> = {
   not_authenticated: "Tu sesión terminó. Vuelve a iniciar sesión.",
   forbidden: "No tienes permiso para realizar esta acción.",
   demo_unavailable: "No disponible en el modo de prueba.",
+  no_open_cash_session: "La caja está cerrada. Abre el turno de caja para cobrar o registrar movimientos.",
+  cash_session_already_open: "Ya hay un turno de caja abierto en este espacio.",
+  cash_session_closed: "El turno de caja ya está cerrado y no admite cambios.",
+  cash_session_not_found: "No encontramos el turno de caja.",
+  invalid_amount: "Revisa los montos: usa cantidades válidas con máximo dos decimales.",
+  invalid_charge: "Agrega al menos un concepto y una forma de pago válidos.",
+  payment_mismatch: "Los pagos deben sumar exactamente el total del cobro.",
+  appointment_already_charged: "Esa cita ya tiene un cobro registrado.",
+  appointment_not_chargeable: "Una cita cancelada no se puede cobrar.",
+  charge_not_found: "No encontramos el cobro o no tienes acceso a él.",
+  charge_already_voided: "Ese cobro ya estaba cancelado.",
+  void_reason_required: "Escribe el motivo de la cancelación (mínimo 3 caracteres).",
+  concept_required: "Escribe el concepto del movimiento (mínimo 3 caracteres).",
+  insufficient_cash: "No hay suficiente efectivo en caja para esta operación.",
+  difference_needs_note: "El efectivo contado no coincide con el esperado. Escribe una nota que explique la diferencia.",
 };
 
 /** Errores de disponibilidad que permiten ofrecer horarios alternativos. */

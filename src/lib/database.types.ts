@@ -11,6 +11,9 @@ export type OrganizationKind = "hospital" | "clinic" | "independent";
 export type AppointmentStatus = "pending" | "confirmed" | "attended" | "cancelled" | "no_show";
 export type TimeOffKind = "vacation" | "meal" | "absence" | "other";
 export type AppointmentEventType = "created" | "status_changed" | "rescheduled" | "details_updated";
+export type PaymentMethod = "cash" | "card" | "transfer";
+export type ChargeStatus = "paid" | "voided";
+export type CashMovementKind = "in" | "out";
 
 export type ProfileRow = Timestamps & { id: string; full_name: string; email: string | null };
 export type OrganizationRow = Timestamps & {
@@ -36,7 +39,7 @@ export type InvitationRow = {
   accepted_by: string | null;
   revoked_at: string | null;
 };
-export type ProfessionalTypeRow = { code: string; label: string; sort_order: number; uses_pet_name: boolean; active: boolean };
+export type ProfessionalTypeRow = { code: string; label: string; sort_order: number; active: boolean };
 export type ProfessionalRow = Timestamps & {
   id: string;
   organization_id: string;
@@ -57,6 +60,8 @@ export type ServiceRow = Timestamps & {
   duration_minutes: number;
   description: string | null;
   active: boolean;
+  /** Precio de lista en MXN. */
+  price: number;
 };
 export type ProfessionalServiceRow = { organization_id: string; professional_id: string; service_id: string; created_at: string };
 export type AvailabilityRuleRow = {
@@ -94,7 +99,6 @@ export type AppointmentRow = Timestamps & {
   professional_id: string;
   service_id: string;
   contact_id: string;
-  pet_name: string | null;
   starts_at: string;
   ends_at: string;
   status: AppointmentStatus;
@@ -122,6 +126,84 @@ export type AppointmentEventRow = {
   created_at: string;
 };
 
+export type CashSessionRow = {
+  id: string;
+  organization_id: string;
+  opened_by: string | null;
+  opened_at: string;
+  opening_amount: number;
+  opening_notes: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  counted_cash: number | null;
+  expected_cash: number | null;
+  difference: number | null;
+  closing_notes: string | null;
+};
+export type ChargeRow = {
+  id: string;
+  organization_id: string;
+  session_id: string;
+  folio: number;
+  contact_id: string | null;
+  appointment_id: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: ChargeStatus;
+  notes: string | null;
+  idempotency_key: string | null;
+  created_by: string | null;
+  created_at: string;
+  voided_by: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+};
+export type ChargeItemRow = {
+  id: number;
+  organization_id: string;
+  charge_id: string;
+  service_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+};
+export type PaymentRow = {
+  id: string;
+  organization_id: string;
+  charge_id: string;
+  session_id: string;
+  method: PaymentMethod;
+  amount: number;
+  reference: string | null;
+  created_at: string;
+};
+export type CashMovementRow = {
+  id: string;
+  organization_id: string;
+  session_id: string;
+  kind: CashMovementKind;
+  amount: number;
+  concept: string;
+  created_by: string | null;
+  created_at: string;
+};
+export type CashSessionTotals = {
+  opening_amount: number;
+  cash_sales: number;
+  card_sales: number;
+  transfer_sales: number;
+  movements_in: number;
+  movements_out: number;
+  expected_cash: number;
+  charges_count: number;
+  voided_count: number;
+  voided_total: number;
+};
+export type ChargeItemInput = { service_id: string | null; description: string; quantity: number; unit_price: number };
+export type PaymentInput = { method: PaymentMethod; amount: number; reference?: string | null };
+
 export type AgendaAppointment = {
   id: string;
   professional_id: string;
@@ -133,7 +215,6 @@ export type AgendaAppointment = {
   contact_name: string;
   contact_phone: string | null;
   contact_email: string | null;
-  pet_name: string | null;
   status: AppointmentStatus;
   starts_at: string;
   ends_at: string;
@@ -218,7 +299,7 @@ export type Database = {
       >;
       services: Table<
         ServiceRow,
-        { organization_id: string; name: string; duration_minutes: number; description?: string | null; active?: boolean }
+        { organization_id: string; name: string; duration_minutes: number; description?: string | null; active?: boolean; price?: number }
       >;
       professional_services: Table<
         ProfessionalServiceRow,
@@ -259,7 +340,6 @@ export type Database = {
           starts_at: string;
           ends_at?: string;
           status?: AppointmentStatus;
-          pet_name?: string | null;
           notes?: string | null;
           cancellation_reason?: string | null;
           idempotency_key?: string | null;
@@ -289,6 +369,11 @@ export type Database = {
         ]
       >;
       appointment_events: Table<AppointmentEventRow, never>;
+      cash_sessions: Table<CashSessionRow, never>;
+      charges: Table<ChargeRow, never>;
+      charge_items: Table<ChargeItemRow, never>;
+      payments: Table<PaymentRow, never>;
+      cash_movements: Table<CashMovementRow, never>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -335,7 +420,6 @@ export type Database = {
           p_local_date: string;
           p_local_time: string;
           p_status?: AppointmentStatus;
-          p_pet_name?: string | null;
           p_notes?: string | null;
           p_idempotency_key?: string | null;
         };
@@ -384,6 +468,27 @@ export type Database = {
       };
       dashboard_summary: { Args: { p_organization_id: string }; Returns: Json };
       professional_future_appointments: { Args: { p_professional_id: string }; Returns: number };
+      open_cash_session: { Args: { p_organization_id: string; p_opening_amount: number; p_notes?: string | null }; Returns: CashSessionRow };
+      create_charge: {
+        Args: {
+          p_organization_id: string;
+          p_items: Json;
+          p_payments: Json;
+          p_discount?: number;
+          p_contact_id?: string | null;
+          p_appointment_id?: string | null;
+          p_notes?: string | null;
+          p_idempotency_key?: string | null;
+        };
+        Returns: ChargeRow;
+      };
+      void_charge: { Args: { p_charge_id: string; p_reason: string }; Returns: ChargeRow };
+      add_cash_movement: {
+        Args: { p_organization_id: string; p_kind: CashMovementKind; p_amount: number; p_concept: string };
+        Returns: CashMovementRow;
+      };
+      close_cash_session: { Args: { p_session_id: string; p_counted_amount: number; p_notes?: string | null }; Returns: CashSessionRow };
+      cash_session_totals: { Args: { p_session_id: string }; Returns: CashSessionTotals[] };
     };
     Enums: {
       member_role: MemberRole;
@@ -391,6 +496,9 @@ export type Database = {
       appointment_status: AppointmentStatus;
       time_off_kind: TimeOffKind;
       appointment_event_type: AppointmentEventType;
+      payment_method: PaymentMethod;
+      charge_status: ChargeStatus;
+      cash_movement_kind: CashMovementKind;
     };
     CompositeTypes: Record<string, never>;
   };

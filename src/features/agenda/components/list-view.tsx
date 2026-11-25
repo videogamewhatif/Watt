@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, PawPrint } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { STATUS_STYLE, StatusBadge } from "@/components/ui/status-badge";
 import type { AgendaAppointment, AgendaTimeOff } from "@/lib/database.types";
@@ -75,12 +75,6 @@ export function ListView({ days, today, appointments, timeOff, professionalNames
                         <span className={`block truncate font-semibold ${a.status === "cancelled" ? "text-muted line-through" : ""}`}>{a.contact_name}</span>
                         <span className="block truncate text-sm text-ink-soft">
                           {a.service_name}
-                          {a.pet_name ? (
-                            <>
-                              {" · "}
-                              <PawPrint className="inline size-3.5" aria-hidden /> {a.pet_name}
-                            </>
-                          ) : null}
                         </span>
                         {showProfessional ? (
                           <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">

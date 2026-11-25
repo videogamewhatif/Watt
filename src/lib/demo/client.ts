@@ -3,8 +3,10 @@
 // insert/update/delete y rpc), aplica los mismos permisos por rol que las políticas
 // RLS y reproduce las reglas de la agenda. No se conecta a ningún servicio.
 import "server-only";
+import { fromCents, toCents } from "@/lib/money";
 import type { ServerClient } from "@/lib/supabase/server";
 import { addDays, hhmm, isoWeekday, localParts, minutesOf, zonedToInstant } from "@/lib/tz";
+import { sessionTotals } from "./cash";
 import { contactComputed, type DemoStore, getDemoStore, normalizeSearch, phoneDigits, type Row } from "./data";
 import { DEMO_PERSONAS } from "./personas";
 
@@ -86,6 +88,12 @@ class Viewer {
         const a = this.db.appointments.find((x) => x.id === r.appointment_id);
         return Boolean(a && this.canSee("appointments", a));
       }
+      case "cash_sessions":
+      case "charges":
+      case "charge_items":
+      case "payments":
+      case "cash_movements":
+        return this.staff.has(r.organization_id);
     }
   }
 
@@ -107,7 +115,8 @@ class Viewer {
         return op !== "update" && this.admin.has(org);
       case "availability_rules":
       case "time_off":
-        return this.admin.has(org);
+        // Administración, o el propio profesional sobre su horario y bloqueos.
+        return this.admin.has(org) || this.ownProfessionals.has(r.professional_id);
       case "contacts":
         if (op === "insert") return this.member.has(org);
         if (op === "delete") return this.admin.has(org);
@@ -156,6 +165,22 @@ function project(v: Viewer, row: Row, cols: string): Row {
 // ---------------------------------------------------------------------------
 // Constructor de consultas
 // ---------------------------------------------------------------------------
+const INSTANT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/**
+ * Compara como lo haría PostgreSQL: los instantes por su valor (aunque uno venga
+ * con "Z" y otro con "+00:00"), los números como números y lo demás como texto.
+ */
+function compareValues(a: unknown, b: unknown): number {
+  if (typeof a === "string" && typeof b === "string" && INSTANT_RE.test(a) && INSTANT_RE.test(b)) {
+    return Math.sign(new Date(a).getTime() - new Date(b).getTime());
+  }
+  if (typeof a === "number" && typeof b === "number") return Math.sign(a - b);
+  const x = String(a);
+  const y = String(b);
+  return x === y ? 0 : x < y ? -1 : 1;
+}
+
 class DemoQuery implements PromiseLike<Result> {
   private op: "select" | "insert" | "update" | "delete" = "select";
   private cols = "*";
@@ -163,6 +188,7 @@ class DemoQuery implements PromiseLike<Result> {
   private filters: ((r: Row) => boolean)[] = [];
   private orders: { col: string; asc: boolean }[] = [];
   private max: number | null = null;
+  private offset = 0;
   private mode: "many" | "single" | "maybe" = "many";
   private payload: Row | Row[] | null = null;
 
@@ -206,12 +232,34 @@ class DemoQuery implements PromiseLike<Result> {
     this.filters.push((r) => (op === "is" && value === null ? r[col] != null : r[col] !== value));
     return this;
   }
+  gte(col: string, value: unknown) {
+    this.filters.push((r) => r[col] != null && compareValues(r[col], value) >= 0);
+    return this;
+  }
+  gt(col: string, value: unknown) {
+    this.filters.push((r) => r[col] != null && compareValues(r[col], value) > 0);
+    return this;
+  }
+  lte(col: string, value: unknown) {
+    this.filters.push((r) => r[col] != null && compareValues(r[col], value) <= 0);
+    return this;
+  }
+  lt(col: string, value: unknown) {
+    this.filters.push((r) => r[col] != null && compareValues(r[col], value) < 0);
+    return this;
+  }
   order(col: string, opts: { ascending?: boolean } = {}) {
     this.orders.push({ col, asc: opts.ascending ?? true });
     return this;
   }
   limit(n: number) {
     this.max = n;
+    return this;
+  }
+  /** Paginación de PostgREST: filas `from`…`to`, ambas incluidas. */
+  range(from: number, to: number) {
+    this.offset = from;
+    this.max = to - from + 1;
     return this;
   }
   single() {
@@ -245,7 +293,7 @@ class DemoQuery implements PromiseLike<Result> {
         return (x < y ? -1 : 1) * (asc ? 1 : -1);
       });
     }
-    if (this.max !== null) list = list.slice(0, this.max);
+    if (this.offset || this.max !== null) list = list.slice(this.offset, this.max === null ? undefined : this.offset + this.max);
     const data = list.map((r) => project(this.v, r, this.cols));
     if (this.mode === "many") return { data, error: null };
     if (data.length === 1) return { data: data[0], error: null };
@@ -298,7 +346,7 @@ function withDefaults(table: Table, values: Row, uid: string): Row {
     case "professionals":
       return { ...base, user_id: null, professional_type: "medico", specialty: null, color: "#0f766e", email: null, phone: null, active: true, deactivated_at: null, ...values };
     case "services":
-      return { ...base, description: null, active: true, ...values };
+      return { ...base, description: null, active: true, price: 0, ...values };
     case "contacts":
       return contactComputed({ ...base, phone: null, email: null, ...values, full_name: String(values.full_name ?? "").trim(), created_by: uid });
     case "time_off":
@@ -347,7 +395,7 @@ function validateUpdate(v: Viewer, table: Table, before: Row, next: Row): DbErro
   }
   if (table === "contacts" && !next.phone && !next.email) return err("violates check constraint", "23514");
   if (table === "memberships" && before.role === "admin" && next.role !== "admin" && otherAdmins(db, before) === 0) return err("last_admin");
-  if (table === "appointments" && (next.notes !== before.notes || next.pet_name !== before.pet_name)) {
+  if (table === "appointments" && next.notes !== before.notes) {
     addEvent(db, next, "details_updated", v.uid);
   }
   return null;
@@ -358,7 +406,7 @@ function validateDelete(db: DemoStore, table: Table, row: Row): DbError | null {
   if (table === "memberships") {
     for (const p of db.professionals) if (p.organization_id === row.organization_id && p.user_id === row.user_id) p.user_id = null;
   }
-  if (table === "contacts" && db.appointments.some((a) => a.contact_id === row.id)) return err("violates foreign key constraint", "23503");
+  if (table === "contacts" && (db.appointments.some((a) => a.contact_id === row.id) || db.charges.some((c) => c.contact_id === row.id))) return err("violates foreign key constraint", "23503");
   return null;
 }
 
@@ -502,7 +550,6 @@ function bookAppointment(v: Viewer, a: Row): Result {
     professional_id: prof.id,
     service_id: service.id,
     contact_id: contact.id,
-    pet_name: a.p_pet_name?.trim() || null,
     starts_at: startsAt,
     ends_at: endsAt,
     status,
@@ -600,7 +647,6 @@ function agendaRows(v: Viewer, a: Row): Result {
           contact_name: c.full_name,
           contact_phone: c.phone,
           contact_email: c.email,
-          pet_name: x.pet_name,
           status: x.status,
           starts_at: x.starts_at,
           ends_at: x.ends_at,
@@ -718,7 +764,7 @@ function similarContacts(v: Viewer, a: Row): Result {
 function setWeeklySchedule(v: Viewer, a: Row): Result {
   const db = v.db;
   const prof = db.professionals.find((p) => p.id === a.p_professional_id);
-  if (!prof || !v.admin.has(prof.organization_id)) return { data: null, error: err("forbidden", "42501") };
+  if (!prof || !(v.admin.has(prof.organization_id) || v.ownProfessionals.has(prof.id))) return { data: null, error: err("forbidden", "42501") };
   const rules = (a.p_rules as Row[]).map((r) => ({
     id: crypto.randomUUID(),
     organization_id: prof.organization_id,
@@ -831,7 +877,204 @@ function getInvitation(v: Viewer, a: Row): Result {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Caja (equivalente a las funciones SQL de 0005_cash_register)
+// ---------------------------------------------------------------------------
+const isMoney = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n * 100 - Math.round(n * 100)) < 1e-6;
+
+function requireStaff(v: Viewer, organizationId: string): DbError | null {
+  return v.staff.has(organizationId) ? null : err("forbidden", "42501");
+}
+
+function openSession(db: DemoStore, organizationId: string) {
+  return db.cash_sessions.find((s) => s.organization_id === organizationId && !s.closed_at);
+}
+
+function openCashSession(v: Viewer, a: Row): Result {
+  const denied = requireStaff(v, a.p_organization_id);
+  if (denied) return { data: null, error: denied };
+  if (!isMoney(a.p_opening_amount) || a.p_opening_amount < 0) return { data: null, error: err("invalid_amount") };
+  if (openSession(v.db, a.p_organization_id)) return { data: null, error: err("cash_session_already_open") };
+  const row: Row = {
+    id: crypto.randomUUID(),
+    organization_id: a.p_organization_id,
+    opened_by: v.uid,
+    opened_at: new Date().toISOString(),
+    opening_amount: a.p_opening_amount,
+    opening_notes: a.p_notes?.trim() || null,
+    closed_by: null,
+    closed_at: null,
+    counted_cash: null,
+    expected_cash: null,
+    difference: null,
+    closing_notes: null,
+  };
+  v.db.cash_sessions.push(row);
+  return { data: row, error: null };
+}
+
+function createCharge(v: Viewer, a: Row): Result {
+  const db = v.db;
+  const org: string = a.p_organization_id;
+  const denied = requireStaff(v, org);
+  if (denied) return { data: null, error: denied };
+  if (a.p_idempotency_key) {
+    const existing = db.charges.find((c) => c.organization_id === org && c.idempotency_key === a.p_idempotency_key);
+    if (existing) return { data: existing, error: null };
+  }
+  const session = openSession(db, org);
+  if (!session) return { data: null, error: err("no_open_cash_session") };
+  const items: Row[] = a.p_items;
+  const payments: Row[] = a.p_payments;
+  if (!Array.isArray(items) || !Array.isArray(payments) || items.length < 1 || items.length > 50 || payments.length < 1 || payments.length > 10)
+    return { data: null, error: err("invalid_charge") };
+  const discount = a.p_discount ?? 0;
+  if (!isMoney(discount) || discount < 0) return { data: null, error: err("invalid_amount") };
+
+  let contactId: string | null = a.p_contact_id ?? null;
+  if (a.p_appointment_id) {
+    const appt = db.appointments.find((x) => x.id === a.p_appointment_id && x.organization_id === org);
+    if (!appt) return { data: null, error: err("appointment_not_found") };
+    if (appt.status === "cancelled") return { data: null, error: err("appointment_not_chargeable") };
+    if (db.charges.some((c) => c.appointment_id === appt.id && c.status === "paid")) return { data: null, error: err("appointment_already_charged") };
+    contactId ??= appt.contact_id;
+  }
+  if (contactId && !db.contacts.some((c) => c.id === contactId && c.organization_id === org)) return { data: null, error: err("violates foreign key constraint", "23503") };
+
+  const lines: Row[] = [];
+  let subtotal = 0;
+  for (const item of items) {
+    const quantity = item.quantity;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) return { data: null, error: err("invalid_charge") };
+    let description: string;
+    let unitPrice: number;
+    let serviceId: string | null = null;
+    if (item.service_id) {
+      const service = db.services.find((x) => x.id === item.service_id && x.organization_id === org);
+      if (!service) return { data: null, error: err("service_not_found") };
+      description = service.name;
+      unitPrice = service.price;
+      serviceId = service.id;
+    } else {
+      description = String(item.description ?? "").trim();
+      unitPrice = item.unit_price;
+      if (!isMoney(unitPrice) || unitPrice < 0) return { data: null, error: err("invalid_amount") };
+      if (description.length < 2 || description.length > 160) return { data: null, error: err("violates check constraint", "23514") };
+    }
+    subtotal += toCents(unitPrice) * quantity;
+    lines.push({ service_id: serviceId, description, quantity, unit_price: unitPrice, amount: fromCents(toCents(unitPrice) * quantity) });
+  }
+  const total = subtotal - toCents(discount);
+  if (subtotal <= 0 || toCents(discount) >= subtotal || total <= 0) return { data: null, error: err("invalid_amount") };
+
+  let paid = 0;
+  for (const p of payments) {
+    if (!isMoney(p.amount) || p.amount <= 0) return { data: null, error: err("invalid_amount") };
+    if (!["cash", "card", "transfer"].includes(p.method)) return { data: null, error: err("invalid input value for enum", "22P02") };
+    paid += toCents(p.amount);
+  }
+  if (paid !== total) return { data: null, error: err("payment_mismatch", "P0001", String(fromCents(total))) };
+
+  const now = new Date().toISOString();
+  const charge: Row = {
+    id: crypto.randomUUID(),
+    organization_id: org,
+    session_id: session.id,
+    folio: Math.max(0, ...db.charges.filter((c) => c.organization_id === org).map((c) => c.folio)) + 1,
+    contact_id: contactId,
+    appointment_id: a.p_appointment_id ?? null,
+    subtotal: fromCents(subtotal),
+    discount,
+    total: fromCents(total),
+    status: "paid",
+    notes: a.p_notes?.trim() || null,
+    idempotency_key: a.p_idempotency_key ?? null,
+    created_by: v.uid,
+    created_at: now,
+    voided_by: null,
+    voided_at: null,
+    void_reason: null,
+  };
+  db.charges.push(charge);
+  for (const l of lines) db.charge_items.push({ id: ++db.seq, organization_id: org, charge_id: charge.id, ...l });
+  for (const p of payments)
+    db.payments.push({ id: crypto.randomUUID(), organization_id: org, charge_id: charge.id, session_id: session.id, method: p.method, amount: p.amount, reference: p.reference?.trim() || null, created_at: now });
+  return { data: charge, error: null };
+}
+
+function voidCharge(v: Viewer, a: Row): Result {
+  const db = v.db;
+  const charge = db.charges.find((c) => c.id === a.p_charge_id && v.canSee("charges", c));
+  if (!charge) return { data: null, error: err("charge_not_found") };
+  if (!v.admin.has(charge.organization_id)) return { data: null, error: err("forbidden", "42501") };
+  const reason = String(a.p_reason ?? "").trim();
+  if (reason.length < 3 || reason.length > 200) return { data: null, error: err("void_reason_required") };
+  if (charge.status !== "paid") return { data: null, error: err("charge_already_voided") };
+  const session = db.cash_sessions.find((s) => s.id === charge.session_id)!;
+  if (session.closed_at) return { data: null, error: err("cash_session_closed") };
+  const cash = db.payments.filter((p) => p.charge_id === charge.id && p.method === "cash").reduce((n, p) => n + toCents(p.amount), 0);
+  if (toCents(sessionTotals(db, session.id)!.expected_cash) - cash < 0) return { data: null, error: err("insufficient_cash") };
+  Object.assign(charge, { status: "voided", voided_by: v.uid, voided_at: new Date().toISOString(), void_reason: reason });
+  return { data: charge, error: null };
+}
+
+function addCashMovement(v: Viewer, a: Row): Result {
+  const db = v.db;
+  const denied = requireStaff(v, a.p_organization_id);
+  if (denied) return { data: null, error: denied };
+  if (!isMoney(a.p_amount) || a.p_amount <= 0) return { data: null, error: err("invalid_amount") };
+  const concept = String(a.p_concept ?? "").trim();
+  if (concept.length < 3 || concept.length > 160) return { data: null, error: err("concept_required") };
+  const session = openSession(db, a.p_organization_id);
+  if (!session) return { data: null, error: err("no_open_cash_session") };
+  if (a.p_kind === "out" && toCents(sessionTotals(db, session.id)!.expected_cash) < toCents(a.p_amount)) return { data: null, error: err("insufficient_cash") };
+  const row: Row = {
+    id: crypto.randomUUID(),
+    organization_id: a.p_organization_id,
+    session_id: session.id,
+    kind: a.p_kind,
+    amount: a.p_amount,
+    concept,
+    created_by: v.uid,
+    created_at: new Date().toISOString(),
+  };
+  db.cash_movements.push(row);
+  return { data: row, error: null };
+}
+
+function closeCashSession(v: Viewer, a: Row): Result {
+  const db = v.db;
+  const session = db.cash_sessions.find((s) => s.id === a.p_session_id && v.canSee("cash_sessions", s));
+  if (!session) return { data: null, error: err("cash_session_not_found") };
+  if (!isMoney(a.p_counted_amount) || a.p_counted_amount < 0) return { data: null, error: err("invalid_amount") };
+  if (session.closed_at) return { data: null, error: err("cash_session_closed") };
+  const expected = sessionTotals(db, session.id)!.expected_cash;
+  const notes = String(a.p_notes ?? "").trim() || null;
+  if (toCents(a.p_counted_amount) !== toCents(expected) && !notes) return { data: null, error: err("difference_needs_note", "P0001", String(expected)) };
+  Object.assign(session, {
+    closed_at: new Date().toISOString(),
+    closed_by: v.uid,
+    counted_cash: a.p_counted_amount,
+    expected_cash: expected,
+    difference: fromCents(toCents(a.p_counted_amount) - toCents(expected)),
+    closing_notes: notes,
+  });
+  return { data: session, error: null };
+}
+
+function cashSessionTotals(v: Viewer, a: Row): Result {
+  const session = v.db.cash_sessions.find((s) => s.id === a.p_session_id && v.canSee("cash_sessions", s));
+  const totals = session ? sessionTotals(v.db, session.id) : null;
+  return { data: totals ? [totals] : [], error: null };
+}
+
 const RPC: Record<string, (v: Viewer, args: Row) => Result> = {
+  open_cash_session: openCashSession,
+  create_charge: createCharge,
+  void_charge: voidCharge,
+  add_cash_movement: addCashMovement,
+  close_cash_session: closeCashSession,
+  cash_session_totals: cashSessionTotals,
   get_available_slots: availableSlots,
   book_appointment: bookAppointment,
   reschedule_appointment: rescheduleAppointment,

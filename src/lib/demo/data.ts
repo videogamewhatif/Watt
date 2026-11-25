@@ -1,6 +1,7 @@
 // Datos FICTICIOS del modo de prueba (los mismos de supabase/seed.sql), con fechas
 // calculadas a partir de hoy en la zona del espacio.
 import { addDays, isoWeekday, todayIn, zonedToInstant } from "@/lib/tz";
+import { sessionTotals } from "./cash";
 import { DEMO_PERSONAS } from "./personas";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +20,12 @@ export type DemoStore = Record<
   | "time_off"
   | "contacts"
   | "appointments"
-  | "appointment_events",
+  | "appointment_events"
+  | "cash_sessions"
+  | "charges"
+  | "charge_items"
+  | "payments"
+  | "cash_movements",
   Row[]
 > & { seq: number };
 
@@ -27,7 +33,7 @@ const TZ = "America/Mexico_City";
 const [U_LAURA, U_MARIO, U_ANA, U_LUIS] = DEMO_PERSONAS.map((p) => p.id);
 const O_CLINIC = "b0000000-0000-4000-8000-000000000001";
 const O_INDEP = "b0000000-0000-4000-8000-000000000002";
-const O_VET = "b0000000-0000-4000-8000-000000000003";
+const O_NUTRI = "b0000000-0000-4000-8000-000000000003";
 const P_RUIZ = "c0000000-0000-4000-8000-000000000001";
 const P_SALAS = "c0000000-0000-4000-8000-000000000002";
 const P_LUIS = "c0000000-0000-4000-8000-000000000003";
@@ -65,14 +71,14 @@ export function buildDemoStore(now = new Date()): DemoStore {
     organizations: [
       { id: O_CLINIC, name: "Clínica Arboleda (demo)", kind: "clinic", timezone: TZ, slot_interval_minutes: 15, created_by: U_LAURA, ...stamp },
       { id: O_INDEP, name: "Consultorio Dr. Herrera (demo)", kind: "independent", timezone: TZ, slot_interval_minutes: 15, created_by: U_LUIS, ...stamp },
-      { id: O_VET, name: "Veterinaria Patitas (demo)", kind: "clinic", timezone: TZ, slot_interval_minutes: 15, created_by: U_MARIO, ...stamp },
+      { id: O_NUTRI, name: "Centro de Nutrición Vital (demo)", kind: "clinic", timezone: TZ, slot_interval_minutes: 15, created_by: U_MARIO, ...stamp },
     ],
     memberships: [
       [O_CLINIC, U_LAURA, "admin"],
       [O_CLINIC, U_MARIO, "reception"],
       [O_CLINIC, U_ANA, "professional"],
       [O_INDEP, U_LUIS, "admin"],
-      [O_VET, U_MARIO, "admin"],
+      [O_NUTRI, U_MARIO, "admin"],
     ].map(([organization_id, user_id, role], i) => ({
       id: `f0000000-0000-4000-8000-00000000000${i + 1}`,
       organization_id,
@@ -82,17 +88,18 @@ export function buildDemoStore(now = new Date()): DemoStore {
     })),
     invitations: [],
     professional_types: [
-      { code: "medico", label: "Médico", sort_order: 10, uses_pet_name: false, active: true },
-      { code: "dentista", label: "Dentista", sort_order: 20, uses_pet_name: false, active: true },
-      { code: "nutriologo", label: "Nutriólogo", sort_order: 30, uses_pet_name: false, active: true },
-      { code: "veterinario", label: "Veterinario", sort_order: 40, uses_pet_name: true, active: true },
-      { code: "otro", label: "Otro", sort_order: 90, uses_pet_name: false, active: true },
+      { code: "medico", label: "Hospital", sort_order: 10, active: true },
+      { code: "nutriologo", label: "Nutriólogo", sort_order: 20, active: true },
+      { code: "psicologo", label: "Psicólogo", sort_order: 30, active: true },
+      { code: "dentista", label: "Dentista", sort_order: 40, active: true },
+      { code: "optica", label: "Óptica", sort_order: 50, active: true },
+      { code: "otro", label: "Otro", sort_order: 90, active: true },
     ],
     professionals: [
       [P_RUIZ, O_CLINIC, U_ANA, "Dra. Ana Ruiz", "medico", "Medicina general", "#0f766e", null],
       [P_SALAS, O_CLINIC, null, "Dr. Jorge Salas", "dentista", "Odontología general", "#7c3aed", "55 5010 2030"],
       [P_LUIS, O_INDEP, U_LUIS, "Dr. Luis Herrera", "medico", "Medicina interna", "#b45309", null],
-      [P_SOTO, O_VET, null, "MVZ Daniela Soto", "veterinario", "Pequeñas especies", "#be185d", null],
+      [P_SOTO, O_NUTRI, null, "Lic. Daniela Soto", "nutriologo", "Nutrición clínica", "#be185d", null],
     ].map(([id, organization_id, user_id, display_name, professional_type, specialty, color, phone]) => ({
       id,
       organization_id,
@@ -108,20 +115,21 @@ export function buildDemoStore(now = new Date()): DemoStore {
       ...stamp,
     })),
     services: [
-      ["d0000000-0000-4000-8000-000000000001", O_CLINIC, "Consulta general", 30, null],
-      ["d0000000-0000-4000-8000-000000000002", O_CLINIC, "Revisión de seguimiento", 20, "Cita breve de control."],
-      ["d0000000-0000-4000-8000-000000000003", O_CLINIC, "Valoración dental", 30, null],
-      ["d0000000-0000-4000-8000-000000000004", O_CLINIC, "Limpieza dental", 45, null],
-      ["d0000000-0000-4000-8000-000000000005", O_INDEP, "Consulta de primera vez", 45, null],
-      ["d0000000-0000-4000-8000-000000000006", O_INDEP, "Consulta subsecuente", 30, null],
-      ["d0000000-0000-4000-8000-000000000007", O_VET, "Consulta veterinaria", 30, null],
-      ["d0000000-0000-4000-8000-000000000008", O_VET, "Vacunación", 15, null],
-    ].map(([id, organization_id, name, duration_minutes, description]) => ({
+      ["d0000000-0000-4000-8000-000000000001", O_CLINIC, "Consulta general", 30, null, 450],
+      ["d0000000-0000-4000-8000-000000000002", O_CLINIC, "Revisión de seguimiento", 20, "Cita breve de control.", 300],
+      ["d0000000-0000-4000-8000-000000000003", O_CLINIC, "Valoración dental", 30, null, 500],
+      ["d0000000-0000-4000-8000-000000000004", O_CLINIC, "Limpieza dental", 45, null, 700],
+      ["d0000000-0000-4000-8000-000000000005", O_INDEP, "Consulta de primera vez", 45, null, 900],
+      ["d0000000-0000-4000-8000-000000000006", O_INDEP, "Consulta subsecuente", 30, null, 600],
+      ["d0000000-0000-4000-8000-000000000007", O_NUTRI, "Consulta de nutrición", 45, null, 550],
+      ["d0000000-0000-4000-8000-000000000008", O_NUTRI, "Seguimiento nutricional", 30, null, 400],
+    ].map(([id, organization_id, name, duration_minutes, description, price]) => ({
       id,
       organization_id,
       name,
       duration_minutes,
       description,
+      price,
       active: true,
       ...stamp,
     })),
@@ -131,6 +139,11 @@ export function buildDemoStore(now = new Date()): DemoStore {
     contacts: [],
     appointments: [],
     appointment_events: [],
+    cash_sessions: [],
+    charges: [],
+    charge_items: [],
+    payments: [],
+    cash_movements: [],
   };
 
   const S = Object.fromEntries(store.services.map((s) => [s.name, s]));
@@ -139,7 +152,7 @@ export function buildDemoStore(now = new Date()): DemoStore {
   assign(O_CLINIC, P_RUIZ, ["Consulta general", "Revisión de seguimiento"]);
   assign(O_CLINIC, P_SALAS, ["Valoración dental", "Limpieza dental"]);
   assign(O_INDEP, P_LUIS, ["Consulta de primera vez", "Consulta subsecuente"]);
-  assign(O_VET, P_SOTO, ["Consulta veterinaria", "Vacunación"]);
+  assign(O_NUTRI, P_SOTO, ["Consulta de nutrición", "Seguimiento nutricional"]);
 
   let ruleN = 0;
   const rule = (org: string, prof: string, days: number[], blocks: [string, string][]) => {
@@ -159,7 +172,7 @@ export function buildDemoStore(now = new Date()): DemoStore {
   rule(O_CLINIC, P_SALAS, [1, 2, 3, 4, 5], [["10:00", "14:00"], ["16:00", "19:00"]]);
   rule(O_CLINIC, P_SALAS, [6], [["09:00", "13:00"]]);
   rule(O_INDEP, P_LUIS, [1, 2, 3, 4, 5], [["08:00", "12:00"], ["16:00", "19:00"]]);
-  rule(O_VET, P_SOTO, [1, 2, 3, 4, 5, 6], [["10:00", "15:00"]]);
+  rule(O_NUTRI, P_SOTO, [1, 2, 3, 4, 5, 6], [["10:00", "15:00"]]);
 
   const contacts: [string, string, string, string | null, string | null, string][] = [
     ["maria", O_CLINIC, "María Fernanda López", "55 1234 0001", null, U_MARIO],
@@ -171,8 +184,8 @@ export function buildDemoStore(now = new Date()): DemoStore {
     ["elena", O_INDEP, "Elena Vargas", "33 2000 0001", null, U_LUIS],
     ["hector", O_INDEP, "Héctor Morales", "33 2000 0002", "hector.morales@correo.test", U_LUIS],
     ["paty", O_INDEP, "Patricia Ríos", null, "paty.rios@correo.test", U_LUIS],
-    ["andrea", O_VET, "Andrea Flores", "55 3000 0001", null, U_MARIO],
-    ["raul", O_VET, "Raúl Domínguez", "55 3000 0002", null, U_MARIO],
+    ["andrea", O_NUTRI, "Andrea Flores", "55 3000 0001", null, U_MARIO],
+    ["raul", O_NUTRI, "Raúl Domínguez", "55 3000 0002", null, U_MARIO],
   ];
   const C: Record<string, string> = {};
   contacts.forEach(([key, organization_id, full_name, phone, email, created_by], i) => {
@@ -216,7 +229,7 @@ export function buildDemoStore(now = new Date()): DemoStore {
       ...extra,
     });
 
-  const appt = (org: string, prof: string, service: string, contact: string, day: string, time: string, future: string, past: string, pet: string | null, by: string) => {
+  const appt = (org: string, prof: string, service: string, contact: string, day: string, time: string, future: string, past: string, by: string) => {
     const starts = at(day, time);
     const ends = new Date(new Date(starts).getTime() + S[service].duration_minutes * 60000).toISOString();
     const row: Row = {
@@ -225,7 +238,6 @@ export function buildDemoStore(now = new Date()): DemoStore {
       professional_id: prof,
       service_id: S[service].id,
       contact_id: C[contact],
-      pet_name: pet,
       starts_at: starts,
       ends_at: ends,
       status: new Date(starts) < now ? past : future,
@@ -246,38 +258,38 @@ export function buildDemoStore(now = new Date()): DemoStore {
   const RS = "Revisión de seguimiento";
   const VD = "Valoración dental";
   const LD = "Limpieza dental";
-  appt(O_CLINIC, P_RUIZ, CG, "maria", past1, "09:00", "confirmed", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, RS, "carlos", past1, "10:00", "confirmed", "no_show", null, U_MARIO);
-  appt(O_CLINIC, P_SALAS, LD, "jose", past1, "10:30", "confirmed", "attended", null, U_MARIO);
-  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "elena", past1, "08:30", "confirmed", "attended", null, U_LUIS);
-  appt(O_CLINIC, P_RUIZ, CG, "lupita", w[0], "09:00", "confirmed", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, RS, "sofia", w[0], "09:30", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "ricardo", w[0], "10:30", "confirmed", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "jose", w[0], "12:00", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "maria", w[0], "16:00", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_SALAS, VD, "carlos", w[0], "10:00", "confirmed", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_SALAS, LD, "sofia", w[0], "11:00", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_SALAS, LD, "ricardo", w[0], "17:00", "pending", "attended", null, U_MARIO);
-  appt(O_INDEP, P_LUIS, "Consulta de primera vez", "hector", w[0], "09:00", "confirmed", "attended", null, U_LUIS);
-  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "paty", w[0], "11:00", "pending", "attended", null, U_LUIS);
-  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "elena", w[0], "16:30", "pending", "attended", null, U_LUIS);
-  appt(O_VET, P_SOTO, "Consulta veterinaria", "andrea", w[0], "10:00", "confirmed", "attended", "Firulais", U_MARIO);
-  appt(O_VET, P_SOTO, "Vacunación", "andrea", w[0], "10:30", "pending", "attended", "Michi", U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "carlos", w[1], "09:00", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "lupita", w[1], "12:30", "confirmed", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_RUIZ, RS, "maria", w[1], "15:00", "pending", "attended", null, U_MARIO);
-  appt(O_CLINIC, P_SALAS, VD, "jose", w[1], "12:00", "pending", "attended", null, U_MARIO);
-  appt(O_INDEP, P_LUIS, "Consulta de primera vez", "paty", w[1], "08:00", "pending", "attended", null, U_LUIS);
-  appt(O_VET, P_SOTO, "Consulta veterinaria", "raul", w[1], "11:00", "pending", "attended", "Rocky", U_MARIO);
-  appt(O_CLINIC, P_RUIZ, CG, "ricardo", w[2], "10:00", "pending", "attended", null, U_MARIO);
-  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "hector", w[3], "17:00", "pending", "attended", null, U_LUIS);
+  appt(O_CLINIC, P_RUIZ, CG, "maria", past1, "09:00", "confirmed", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, RS, "carlos", past1, "10:00", "confirmed", "no_show", U_MARIO);
+  appt(O_CLINIC, P_SALAS, LD, "jose", past1, "10:30", "confirmed", "attended", U_MARIO);
+  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "elena", past1, "08:30", "confirmed", "attended", U_LUIS);
+  appt(O_CLINIC, P_RUIZ, CG, "lupita", w[0], "09:00", "confirmed", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, RS, "sofia", w[0], "09:30", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "ricardo", w[0], "10:30", "confirmed", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "jose", w[0], "12:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "maria", w[0], "16:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_SALAS, VD, "carlos", w[0], "10:00", "confirmed", "attended", U_MARIO);
+  appt(O_CLINIC, P_SALAS, LD, "sofia", w[0], "11:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_SALAS, LD, "ricardo", w[0], "17:00", "pending", "attended", U_MARIO);
+  appt(O_INDEP, P_LUIS, "Consulta de primera vez", "hector", w[0], "09:00", "confirmed", "attended", U_LUIS);
+  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "paty", w[0], "11:00", "pending", "attended", U_LUIS);
+  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "elena", w[0], "16:30", "pending", "attended", U_LUIS);
+  appt(O_NUTRI, P_SOTO, "Consulta de nutrición", "andrea", w[0], "10:00", "confirmed", "attended", U_MARIO);
+  appt(O_NUTRI, P_SOTO, "Seguimiento nutricional", "raul", w[0], "11:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "carlos", w[1], "09:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "lupita", w[1], "12:30", "confirmed", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, RS, "maria", w[1], "15:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_SALAS, VD, "jose", w[1], "12:00", "pending", "attended", U_MARIO);
+  appt(O_INDEP, P_LUIS, "Consulta de primera vez", "paty", w[1], "08:00", "pending", "attended", U_LUIS);
+  appt(O_NUTRI, P_SOTO, "Consulta de nutrición", "raul", w[1], "11:00", "pending", "attended", U_MARIO);
+  appt(O_CLINIC, P_RUIZ, CG, "ricardo", w[2], "10:00", "pending", "attended", U_MARIO);
+  appt(O_INDEP, P_LUIS, "Consulta subsecuente", "hector", w[3], "17:00", "pending", "attended", U_LUIS);
 
   // Una cancelada y una reprogramada, para ver el historial.
-  const cancelled = appt(O_CLINIC, P_RUIZ, CG, "sofia", w[1], "16:00", "pending", "pending", null, U_MARIO);
+  const cancelled = appt(O_CLINIC, P_RUIZ, CG, "sofia", w[1], "16:00", "pending", "pending", U_MARIO);
   cancelled.status = "cancelled";
   cancelled.cancellation_reason = "La paciente pidió cancelar";
   event(cancelled, "status_changed", { from_status: "pending", to_status: "cancelled" });
-  const moved = appt(O_CLINIC, P_SALAS, VD, "maria", w[1], "16:00", "pending", "pending", null, U_MARIO);
+  const moved = appt(O_CLINIC, P_SALAS, VD, "maria", w[1], "16:00", "pending", "pending", U_MARIO);
   const newStart = at(w[1], "17:30");
   const newEnd = new Date(new Date(newStart).getTime() + 30 * 60000).toISOString();
   event(moved, "rescheduled", {
@@ -291,7 +303,77 @@ export function buildDemoStore(now = new Date()): DemoStore {
   moved.starts_at = newStart;
   moved.ends_at = newEnd;
 
+  seedCash(store, { O_CLINIC, U_MARIO, U_LAURA, C, S, past1, at });
   return store;
+}
+
+/** Un turno de ayer ya cerrado (con una cancelación y una diferencia) para ver el historial de la caja. */
+function seedCash(store: DemoStore, k: { O_CLINIC: string; U_MARIO: string; U_LAURA: string; C: Record<string, string>; S: Record<string, Row>; past1: string; at: (d: string, t: string) => string }) {
+  const sessionId = "a1000000-0000-4000-8000-000000000001";
+  const opened = k.at(k.past1, "08:45");
+  store.cash_sessions.push({
+    id: sessionId,
+    organization_id: k.O_CLINIC,
+    opened_by: k.U_MARIO,
+    opened_at: opened,
+    opening_amount: 800,
+    opening_notes: null,
+    closed_by: null,
+    closed_at: null,
+    counted_cash: null,
+    expected_cash: null,
+    difference: null,
+    closing_notes: null,
+  });
+  let folio = 0;
+  const sale = (time: string, contact: string, service: string, method: string, voidReason: string | null = null) => {
+    const price = k.S[service].price as number;
+    const id = crypto.randomUUID();
+    const created = k.at(k.past1, time);
+    store.charges.push({
+      id,
+      organization_id: k.O_CLINIC,
+      session_id: sessionId,
+      folio: ++folio,
+      contact_id: k.C[contact],
+      appointment_id: null,
+      subtotal: price,
+      discount: 0,
+      total: price,
+      status: voidReason ? "voided" : "paid",
+      notes: null,
+      idempotency_key: null,
+      created_by: k.U_MARIO,
+      created_at: created,
+      voided_by: voidReason ? k.U_LAURA : null,
+      voided_at: voidReason ? k.at(k.past1, "12:30") : null,
+      void_reason: voidReason,
+    });
+    store.charge_items.push({ id: ++store.seq, organization_id: k.O_CLINIC, charge_id: id, service_id: k.S[service].id, description: service, quantity: 1, unit_price: price, amount: price });
+    store.payments.push({ id: crypto.randomUUID(), organization_id: k.O_CLINIC, charge_id: id, session_id: sessionId, method, amount: price, reference: null, created_at: created });
+  };
+  sale("09:20", "maria", "Consulta general", "cash");
+  sale("11:05", "jose", "Limpieza dental", "card");
+  sale("12:10", "carlos", "Revisión de seguimiento", "transfer", "Cobro duplicado");
+  store.cash_movements.push({
+    id: crypto.randomUUID(),
+    organization_id: k.O_CLINIC,
+    session_id: sessionId,
+    kind: "out",
+    amount: 120,
+    concept: "Compra de papelería",
+    created_by: k.U_MARIO,
+    created_at: k.at(k.past1, "13:15"),
+  });
+  const totals = sessionTotals(store, sessionId)!;
+  Object.assign(store.cash_sessions[0], {
+    closed_by: k.U_MARIO,
+    closed_at: k.at(k.past1, "19:05"),
+    counted_cash: totals.expected_cash - 10,
+    expected_cash: totals.expected_cash,
+    difference: -10,
+    closing_notes: "Faltaron $10 de cambio.",
+  });
 }
 
 const globalForDemo = globalThis as unknown as { __wattalisDemo?: DemoStore };

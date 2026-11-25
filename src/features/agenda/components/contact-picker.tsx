@@ -12,10 +12,12 @@ type Props = {
   value: ContactSummary | null;
   onChange: (contact: ContactSummary | null) => void;
   error?: string;
+  /** En la caja el paciente es opcional (venta de mostrador). */
+  optional?: boolean;
 };
 
 /** Busca un paciente o lo registra sin salir del formulario de la cita. */
-export function ContactPicker({ organizationId, value, onChange, error }: Props) {
+export function ContactPicker({ organizationId, value, onChange, error, optional = false }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +52,7 @@ export function ContactPicker({ organizationId, value, onChange, error }: Props)
     return (
       <div className="space-y-1.5">
         <p className="text-sm font-medium" id={labelId}>
-          Paciente o contacto <span className="text-red-700">*</span>
+          Paciente o contacto{optional ? " (opcional)" : <span className="text-red-700"> *</span>}
         </p>
         <div className="flex items-center justify-between gap-3 rounded-xl border border-line-strong bg-brand-50/40 px-3 py-2.5">
           <span className="flex min-w-0 items-center gap-2">
@@ -80,11 +82,11 @@ export function ContactPicker({ organizationId, value, onChange, error }: Props)
     return (
       <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
         <p className="text-sm font-semibold">Registrar nuevo contacto</p>
-        <p className="text-xs text-muted">Los demás datos de la cita se conservan.</p>
+        <p className="text-xs text-muted">{optional ? "Los conceptos del cobro se conservan." : "Los demás datos de la cita se conservan."}</p>
         <ContactEditor
           organizationId={organizationId}
           initial={digits.length >= 7 ? { phone: query } : query.includes("@") ? { email: query } : { full_name: query }}
-          submitLabel="Guardar y usar en la cita"
+          submitLabel={optional ? "Guardar y usar en el cobro" : "Guardar y usar en la cita"}
           onSaved={(c) => {
             setCreating(false);
             onChange(c);
@@ -107,7 +109,7 @@ export function ContactPicker({ organizationId, value, onChange, error }: Props)
   return (
     <div className="space-y-1.5">
       <label htmlFor={`${listId}-input`} id={labelId} className="block text-sm font-medium">
-        Paciente o contacto <span className="text-red-700">*</span>
+        Paciente o contacto{optional ? " (opcional)" : <span className="text-red-700"> *</span>}
       </label>
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />

@@ -265,7 +265,7 @@ export async function book(
   },
 ) {
   return s.one<{ id: string; starts_at: Date; ends_at: Date; status: string }>(
-    `select * from public.book_appointment($1, $2, $3, $4::date, $5::time, $6::public.appointment_status, null, null, $7)`,
+    `select * from public.book_appointment($1, $2, $3, $4::date, $5::time, $6::public.appointment_status, null, $7)`,
     [args.professionalId, args.serviceId, args.contactId, args.date, args.time, args.status ?? "pending", args.key ?? null],
   );
 }

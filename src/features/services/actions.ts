@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { type ActionResult, fail, fieldErrorsFrom, ok } from "@/lib/action-result";
 import { errorMessage, logError } from "@/lib/errors";
+import { MAX_AMOUNT, toCents } from "@/lib/money";
 import { requireWorkspace, WORKSPACE_MISMATCH } from "@/lib/session";
 
 const serviceSchema = z.object({
@@ -11,6 +12,11 @@ const serviceSchema = z.object({
   id: z.uuid().nullish(),
   name: z.string().trim().min(2, "Escribe el nombre del servicio.").max(120, "El nombre es demasiado largo."),
   durationMinutes: z.coerce.number({ error: "Escribe la duración." }).int("Usa minutos enteros.").min(5, "Mínimo 5 minutos.").max(720, "Máximo 12 horas."),
+  price: z.coerce
+    .number({ error: "Escribe el precio." })
+    .min(0, "El precio no puede ser negativo.")
+    .max(MAX_AMOUNT, "El precio es demasiado alto.")
+    .refine((n) => Math.abs(n * 100 - toCents(n)) < 1e-6, "Usa máximo dos decimales."),
   description: z
     .string()
     .trim()
@@ -27,7 +33,7 @@ export async function saveService(input: z.input<typeof serviceSchema>): Promise
   const { ctx, mismatch } = await requireWorkspace(v.organizationId);
   if (mismatch) return fail(WORKSPACE_MISMATCH);
 
-  const values = { name: v.name, duration_minutes: v.durationMinutes, description: v.description, active: v.active };
+  const values = { name: v.name, duration_minutes: v.durationMinutes, price: v.price, description: v.description, active: v.active };
   const { data, error } = v.id
     ? await ctx.supabase.from("services").update(values).eq("id", v.id).select("id")
     : await ctx.supabase.from("services").insert({ ...values, organization_id: ctx.workspace.id }).select("id");

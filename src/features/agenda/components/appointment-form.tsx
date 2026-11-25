@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, Select, Textarea } from "@/components/ui/field";
 import type { ContactSummary } from "@/features/patients/actions";
 import { SLOT_ERRORS } from "@/lib/errors";
 import { formatDuration } from "@/lib/tz";
-import { contactPetNames, createAppointment, type CreateAppointmentResult } from "../actions";
+import { createAppointment, type CreateAppointmentResult } from "../actions";
 import type { AgendaProfessional, AgendaService } from "../queries";
 import { ContactPicker } from "./contact-picker";
 import { SlotPicker } from "./slot-picker";
@@ -40,8 +40,6 @@ export function AppointmentForm({ organizationId, today, professionals, services
   const [date, setDate] = useState(initial.date < today ? today : initial.date);
   const [time, setTime] = useState<string | null>(initial.time);
   const [status, setStatus] = useState<"pending" | "confirmed">("pending");
-  const [petName, setPetName] = useState("");
-  const [petOptions, setPetOptions] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -66,17 +64,6 @@ export function AppointmentForm({ organizationId, today, professionals, services
   const effectiveServiceId = serviceId ?? (serviceOptions.length === 1 ? serviceOptions[0].id : null);
   const service = services.find((s) => s.id === effectiveServiceId) ?? null;
 
-  useEffect(() => {
-    if (!contact || !professional?.uses_pet_name) return;
-    let cancelled = false;
-    contactPetNames(organizationId, contact.id).then((names) => {
-      if (!cancelled) setPetOptions(names);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [organizationId, contact, professional?.uses_pet_name]);
-
   const submit = () =>
     startTransition(async () => {
       setFormError(null);
@@ -97,7 +84,6 @@ export function AppointmentForm({ organizationId, today, professionals, services
         date,
         time: time!,
         status,
-        petName: professional?.uses_pet_name ? petName : undefined,
         notes,
         idempotencyKey,
       });
@@ -193,26 +179,10 @@ export function AppointmentForm({ organizationId, today, professionals, services
         value={contact}
         onChange={(c) => {
           setContact(c);
-          setPetOptions([]);
           setErrors((e) => ({ ...e, contactId: "" }));
         }}
         error={errors.contactId || undefined}
       />
-
-      {professional?.uses_pet_name ? (
-        <Field label="Nombre de la mascota" hint="El contacto es el tutor. Un tutor puede agendar para distintas mascotas." error={errors.petName}>
-          {({ id, describedBy, invalid }) => (
-            <>
-              <Input id={id} aria-describedby={describedBy} invalid={invalid} value={petName} onChange={(e) => setPetName(e.target.value)} list={`${id}-pets`} maxLength={80} />
-              <datalist id={`${id}-pets`}>
-                {petOptions.map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
-            </>
-          )}
-        </Field>
-      ) : null}
 
       <SlotPicker
         organizationId={organizationId}

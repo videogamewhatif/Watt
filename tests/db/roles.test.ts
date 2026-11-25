@@ -83,6 +83,57 @@ describe("Profesional con cuenta", () => {
     });
   });
 
+  it("administra su propio horario y bloqueos, pero no los de otro profesional", async () => {
+    // Bloqueo ajeno creado por administración, para intentar borrarlo.
+    const salasBlock = await db.as(f.users.clinicAdmin, (s) =>
+      s.one<{ id: string }>(
+        `insert into public.time_off (organization_id, professional_id, starts_at, ends_at, kind)
+         values ($1, $2, now() + interval '40 days', now() + interval '41 days', 'vacation') returning id`,
+        [f.clinicId, f.clinic.salasId],
+      ),
+    );
+
+    await db.as(f.users.drRuiz, async (s) => {
+      // Su horario: lo reescribe con las mismas reglas (no altera el resto de las pruebas).
+      const current = await s.one<{ rules: unknown }>(
+        `select coalesce(jsonb_agg(jsonb_build_object('weekday', weekday, 'start_time', start_time, 'end_time', end_time)), '[]') as rules
+         from public.availability_rules where professional_id = $1`,
+        [f.clinic.ruizId],
+      );
+      await s.query(`select public.set_weekly_schedule($1, $2::jsonb)`, [f.clinic.ruizId, JSON.stringify(current.rules)]);
+
+      // Sus vacaciones: las crea y las quita.
+      const own = await s.one<{ id: string }>(
+        `insert into public.time_off (organization_id, professional_id, starts_at, ends_at, kind)
+         values ($1, $2, now() + interval '40 days', now() + interval '42 days', 'vacation') returning id`,
+        [f.clinicId, f.clinic.ruizId],
+      );
+      expect(await s.query(`delete from public.time_off where id = $1 returning id`, [own.id])).toHaveLength(1);
+
+      // El bloqueo ajeno no existe para su cuenta.
+      expect(await s.query(`delete from public.time_off where id = $1 returning id`, [salasBlock.id])).toHaveLength(0);
+    });
+
+    for (const sql of [
+      `select public.set_weekly_schedule('${f.clinic.salasId}', '[]'::jsonb)`,
+      `insert into public.time_off (organization_id, professional_id, starts_at, ends_at) values ('${f.clinicId}', '${f.clinic.salasId}', now() + interval '50 days', now() + interval '51 days')`,
+      `insert into public.availability_rules (organization_id, professional_id, weekday, start_time, end_time) values ('${f.clinicId}', '${f.clinic.salasId}', 7, '09:00', '10:00')`,
+    ]) {
+      const error = await expectPgError(db.as(f.users.drRuiz, (s) => s.query(sql)));
+      expect(error.code, sql).toBe("42501");
+    }
+    // Ni a su nombre en un espacio ajeno.
+    const crossOrg = await expectPgError(
+      db.as(f.users.drRuiz, (s) =>
+        s.query(
+          `insert into public.availability_rules (organization_id, professional_id, weekday, start_time, end_time) values ($1, $2, 7, '09:00', '10:00')`,
+          [f.indepId, f.clinic.ruizId],
+        ),
+      ),
+    );
+    expect(["42501", "P0001"]).toContain(crossOrg.code);
+  });
+
   it("no puede consultar disponibilidad ni agendar para otro profesional", async () => {
     const slots = await expectPgError(
       db.as(f.users.drRuiz, (s) => s.query(`select * from public.get_available_slots($1, $2, $3::date)`, [f.clinic.salasId, f.clinic.limpiezaId, f.day])),
@@ -126,22 +177,22 @@ describe("Profesional con cuenta", () => {
 
 describe("Cuenta con varios espacios", () => {
   it("ve solo los datos y acciones del espacio y rol correspondientes", async () => {
-    // La recepcionista de la clínica también administra una veterinaria propia.
-    const vetId = await db.as(f.users.reception, async (s) =>
-      (await s.one<{ id: string }>(`select public.create_organization('Veterinaria Patitas', 'independent') as id`)).id,
+    // La recepcionista de la clínica también administra un consultorio de nutrición propio.
+    const nutriId = await db.as(f.users.reception, async (s) =>
+      (await s.one<{ id: string }>(`select public.create_organization('Centro de Nutrición Vital', 'independent') as id`)).id,
     );
     await db.as(f.users.reception, async (s) => {
       const memberships = await s.query<{ organization_id: string; role: string }>(
         `select organization_id, role from public.memberships order by role`,
       );
       expect(memberships).toEqual([
-        { organization_id: vetId, role: "admin" },
+        { organization_id: nutriId, role: "admin" },
         { organization_id: f.clinicId, role: "reception" },
       ]);
-      // En la veterinaria administra; en la clínica no.
-      await s.query(`insert into public.professionals (organization_id, display_name, professional_type) values ($1, 'MVZ Daniela Soto', 'veterinario')`, [vetId]);
-      expect(await s.query(`select * from public.professionals where organization_id = $1`, [vetId])).toHaveLength(1);
-      expect(await s.query(`select * from public.contacts where organization_id = $1`, [vetId])).toHaveLength(0);
+      // En el consultorio de nutrición administra; en la clínica no.
+      await s.query(`insert into public.professionals (organization_id, display_name, professional_type) values ($1, 'Lic. Daniela Soto', 'nutriologo')`, [nutriId]);
+      expect(await s.query(`select * from public.professionals where organization_id = $1`, [nutriId])).toHaveLength(1);
+      expect(await s.query(`select * from public.contacts where organization_id = $1`, [nutriId])).toHaveLength(0);
       const clinicContacts = await db.one<{ n: number }>(`select count(*)::int as n from public.contacts where organization_id = $1`, [f.clinicId]);
       expect(await s.query(`select * from public.contacts where organization_id = $1`, [f.clinicId])).toHaveLength(clinicContacts.n);
     });

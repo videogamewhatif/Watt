@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { EmptyState, PageHeader } from "@/components/ui/layout";
 import { ServiceDialog } from "@/features/services/service-dialog";
 import { getAppContext } from "@/lib/session";
+import { formatMoney } from "@/lib/money";
 import { formatDuration } from "@/lib/tz";
 
 export const metadata: Metadata = { title: "Servicios" };
@@ -40,6 +41,7 @@ export default async function ServicesPage() {
                 <p className="flex flex-wrap items-center gap-2">
                   <span className={`font-semibold ${s.active ? "" : "text-muted"}`}>{s.name}</span>
                   <span className="tabular rounded-full bg-sunken px-2 py-0.5 text-xs">{formatDuration(s.duration_minutes)}</span>
+                  <span className="tabular rounded-full bg-sunken px-2 py-0.5 text-xs">{formatMoney(s.price)}</span>
                   {!s.active ? <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-700 ring-1 ring-stone-300">Inactivo</span> : null}
                 </p>
                 {s.description ? <p className="text-sm text-muted">{s.description}</p> : null}

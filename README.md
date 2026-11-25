@@ -1,6 +1,6 @@
 # Wattalis
 
-Aplicación web privada para gestionar profesionales de salud y citas en hospitales, clínicas y consultorios independientes (medicina, odontología, nutrición, veterinaria y otros). Esta primera versión resuelve el trabajo diario de una recepción o de un profesional que administra su propia consulta.
+Aplicación web privada para gestionar profesionales de salud humana y citas en hospitales, clínicas y consultorios independientes (medicina, odontología, nutrición, psicología, óptica y otras). Esta primera versión resuelve el trabajo diario de una recepción o de un profesional que administra su propia consulta.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase Auth · PostgreSQL de Supabase · compatible con Vercel.
 
@@ -16,11 +16,13 @@ Aplicación web privada para gestionar profesionales de salud y citas en hospita
 | **Inicio** | Resumen real del día: citas de hoy, pendientes, confirmadas, atendidas, próxima cita y acceso a «Nueva cita». Pasos para empezar en un espacio nuevo (se ocultan al completarse). |
 | **Agenda** | Vistas de día (columnas por profesional), semana y lista. Filtros por profesional, servicio y estado que se conservan en la URL. Disponible / fuera de horario / bloqueo diferenciados con patrón y texto. Crear cita desde «Nueva cita» o desde un espacio libre, ver detalle, confirmar, reprogramar (incluso a otro profesional), cancelar, marcar atendida o «No asistió», historial de cambios. |
 | **Profesionales** | Alta, edición, desactivación con aviso de citas futuras (nunca cancela en silencio), servicios asignados, horario semanal con varios bloques por día, bloqueos (vacaciones, comida, ausencia) y vínculo con una cuenta. |
-| **Servicios** | Alta, edición y desactivación; duración en minutos; asignación a uno o varios profesionales. Cambiar la duración conserva la hora final de las citas ya registradas. |
-| **Pacientes o contactos** | Directorio administrativo (nombre + teléfono o correo), búsqueda, sugerencia de posibles duplicados sin fusionar y sin revelar contactos fuera de permisos, citas visibles por paciente. En veterinaria el contacto es el tutor y la mascota se indica en cada cita. |
+| **Servicios** | Alta, edición y desactivación; duración en minutos; **precio de lista (MXN)**; asignación a uno o varios profesionales. Cambiar la duración conserva la hora final de las citas ya registradas; cambiar el precio no altera cobros ya hechos. |
+| **Ventas** | Para Administración y Recepción (el rol Profesional no lo ve). Submenú **Caja**, **Mis ventas** (los cobros que registró la persona, agrupados por día) y **Precorte** (totales del turno abierto, efectivo esperado, ventas por cajero y un conteo de prueba que no cierra el turno ni se guarda; imprimible). **Turnos:** apertura con fondo inicial (un turno abierto por espacio) y corte que compara el efectivo contado contra el esperado, con nota obligatoria si hay diferencia; un turno cerrado es inmutable. **Cobro:** conceptos del catálogo (siempre al precio del servidor) o libres, descuento, pago en efectivo, tarjeta y/o transferencia (pagos mixtos), cálculo de cambio, paciente opcional, cobro con un clic desde «Citas de hoy por cobrar» (una cita no se cobra dos veces; un doble clic no duplica). **Control:** folios consecutivos por espacio, comprobante imprimible (no fiscal), cancelación solo por Administración, con motivo y mientras el turno siga abierto (el cobro no se borra: queda con quién, cuándo y por qué), entradas y salidas de efectivo con concepto (no se puede sacar más efectivo del que hay) e historial de cortes con su diferencia. |
+| **Pacientes o contactos** | Directorio administrativo (nombre + teléfono o correo), búsqueda, sugerencia de posibles duplicados sin fusionar y sin revelar contactos fuera de permisos, citas visibles por paciente. |
+| **Reportes** | Catálogo en «Reportes», filtrado por rol (Recepción no tiene acceso). **Finanzas** (Administración): *Ventas* (vendido, ticket promedio, descuentos y cancelaciones; por día/semana/mes, forma de pago y cajero), *Ingresos por concepto*, *Cortes de caja* (esperado contra contado, faltantes, sobrantes, entradas y salidas) y *Cancelaciones y descuentos* (auditoría con motivo y quién). **Operación** (Administración): *Citas* (estados, asistencia, pasadas sin marcar, por servicio y mapa de horas de mayor demanda), *Desempeño por profesional* (horas disponibles contra reservadas = ocupación, asistencia, pacientes; ingresos atribuidos solo para Administración), *Pacientes* (atendidos, primera vez contra recurrentes, más frecuentes, inasistencias, registros nuevos) y *Citas atendidas sin cobro*. **Mi actividad** para quien atiende consultas (solo sus citas y la ocupación de su horario, sin importes). Periodos preestablecidos o rango propio (hasta un año), filtros por área y profesional en la URL, impresión y descarga de cada tabla en CSV (UTF-8, abre en Excel). |
 | **Configuración** | Datos del espacio (nombre, tipo, zona horaria, intervalo de agenda), miembros y roles, invitaciones, nombre y contraseña de la cuenta. |
 
-Fuera de alcance en esta etapa (y sin botones inactivos que lo anuncien): directorio público, búsqueda de doctores, autoservicio de pacientes, pagos, facturación, recetas, expediente clínico, teleconsulta, WhatsApp e IA.
+Fuera de alcance en esta etapa (y sin botones inactivos que lo anuncien): directorio público, búsqueda de doctores, autoservicio de pacientes, facturación fiscal (CFDI), cobros parciales o a crédito, reembolsos a tarjeta, terminal de pago integrada, multimoneda, recetas, expediente clínico, teleconsulta, WhatsApp e IA.
 
 ---
 
@@ -112,11 +114,11 @@ Contraseña de todas las cuentas demo: **`Wattalis-demo-2026`**
 | Cuenta | Espacio y rol |
 | --- | --- |
 | `admin@clinica-arboleda.test` | Administración · Clínica Arboleda (demo) |
-| `recepcion@clinica-arboleda.test` | Recepción · Clínica Arboleda **y** Administración · Veterinaria Patitas (demo) |
+| `recepcion@clinica-arboleda.test` | Recepción · Clínica Arboleda **y** Administración · Centro de Nutrición Vital (demo) |
 | `ana.ruiz@clinica-arboleda.test` | Profesional · Clínica Arboleda (Dra. Ana Ruiz) |
 | `luis.herrera@consultorio.test` | Administración + Profesional · Consultorio Dr. Herrera (demo) |
 
-Incluye: una clínica con dos profesionales (uno sin cuenta), recepción y cuatro servicios; un consultorio independiente; una veterinaria con mascotas en las citas; horarios partidos (09:00–13:00 y 15:00–18:00), bloqueos (una junta, unas vacaciones de un día y un congreso), citas del día hábil anterior (atendidas / no asistió), de hoy y de los próximos días, una cancelada y una reprogramada con historial. El alta de un espacio nuevo sigue empezando completamente vacía.
+Incluye: una clínica con dos profesionales (uno sin cuenta), recepción y cuatro servicios; un consultorio independiente; un centro de nutrición; horarios partidos (09:00–13:00 y 15:00–18:00), bloqueos (una junta, unas vacaciones de un día y un congreso), citas del día hábil anterior (atendidas / no asistió), de hoy y de los próximos días, una cancelada y una reprogramada con historial. El alta de un espacio nuevo sigue empezando completamente vacía.
 
 ---
 
@@ -132,7 +134,7 @@ Incluye: una clínica con dos profesionales (uno sin cuenta), recepción y cuatr
 **Recepción** — `recepcion@clinica-arboleda.test`
 1. Agenda con cualquiera de los dos profesionales. En el formulario, «Registrar nuevo contacto» crea al paciente sin perder lo ya capturado; recarga y verás la cita y el paciente guardados.
 2. Puede ver profesionales, servicios, horarios y bloqueos, pero no administrarlos ni gestionar miembros.
-3. Cambia a «Veterinaria Patitas» desde el encabezado: ahí es administradora; los filtros y formularios del espacio anterior se limpian.
+3. Cambia a «Centro de Nutrición Vital» desde el encabezado: ahí es administradora; los filtros y formularios del espacio anterior se limpian.
 
 **Profesional** — `ana.ruiz@clinica-arboleda.test`
 - Ve solo su agenda y «Mis pacientes». Cambiar el filtro o la URL a otro profesional o paciente no revela nada (la base responde vacío o 404).
@@ -198,7 +200,8 @@ src/
   app/                    Rutas (App Router). (auth) público, (app) protegido.
   proxy.ts                Renueva la sesión y protege las páginas internas.
   features/<módulo>/      Acciones de servidor, consultas y componentes por dominio:
-                          agenda, professionals, services, patients, settings, workspaces, auth, dashboard
+                          agenda, professionals, services, patients, settings, workspaces, auth, dashboard,
+                          cash, practice, reports
   components/ui|shell/    Componentes accesibles reutilizables y estructura de la app.
   lib/                    Sesión y espacio activo, permisos, zona horaria, errores, tipos de BD.
   lib/demo/               Modo de prueba: datos ficticios en memoria (solo desarrollo).
@@ -221,7 +224,7 @@ tests/
 
 - **Calendario propio** en lugar de una biblioteca: las vistas por profesional y la distinción disponible/fuera de horario/bloqueo dependen de reglas propias; así no hay dependencias de pago ni conversiones de zona del lado del navegador.
 - **Cache Components desactivado** en `next.config.ts`: todo es por usuario y por espacio, y su `<Activity>` conservaría formularios de un espacio al cambiar a otro.
-- **Mascota como texto en la cita** (`appointments.pet_name`), con sugerencias de nombres previos del tutor. Permite varias mascotas por tutor sin construir fichas veterinarias.
+- **Solo salud humana.** La atención veterinaria (tutor + mascota) quedó fuera de esta aplicación; si se retoma será como un producto aparte.
 - **Reprogramar conserva la duración propia de la cita** (la registrada al crearla), coherente con «conservar la hora final si cambia el servicio».
 - **No se agenda en el pasado** desde la interfaz/API; «Atendida» y «No asistió» solo para citas que ya comenzaron. Atendida ↔ No asistió se puede corregir; una cancelada no se reactiva.
 - **Cambiar el horario semanal** no cancela citas: avisa cuántas citas futuras quedaron fuera.

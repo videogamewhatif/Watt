@@ -1,4 +1,4 @@
-import { Mail, PawPrint, Phone } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,6 +7,7 @@ import { Card, CardHeader } from "@/components/ui/layout";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { agendaHref } from "@/features/agenda/params";
 import { EditContactButton } from "@/features/patients/components";
+import { PRACTICE_AREAS } from "@/lib/practice";
 import { getAppContext } from "@/lib/session";
 import { formatShortDate, localParts, todayIn } from "@/lib/tz";
 
@@ -25,16 +26,25 @@ export default async function PatientPage({ params }: PageProps<"/pacientes/[id]
   // Fuera de los permisos de la cuenta, el contacto no existe.
   if (!contact) notFound();
 
-  const { data: appointments } = await ctx.supabase
-    .from("appointments")
-    .select("id, starts_at, ends_at, status, pet_name, service:services(name), professional:professionals(display_name, color)")
-    .eq("contact_id", id)
-    .order("starts_at", { ascending: false })
-    .limit(100);
+  const [{ data: appointments }, { data: types }] = await Promise.all([
+    ctx.supabase
+      .from("appointments")
+      .select("id, starts_at, ends_at, status, service:services(name), professional:professionals(display_name, color, professional_type)")
+      .eq("contact_id", id)
+      .order("starts_at", { ascending: false })
+      .limit(100),
+    ctx.supabase.from("professional_types").select("code, label"),
+  ]);
+  // Área de atención de cada cita, según el tipo del profesional que la atendió.
+  const areaOf = (type: string | undefined) => {
+    const known = PRACTICE_AREAS.find((a) => a.key === type);
+    if (known) return { label: known.label, color: known.color as string | null };
+    const label = types?.find((t) => t.code === type)?.label;
+    return label ? { label, color: null } : null;
+  };
 
   const tz = ctx.workspace.timezone;
   const today = todayIn(tz);
-  const pets = [...new Set((appointments ?? []).map((a) => a.pet_name).filter(Boolean))];
   const canEdit = ctx.can.allAppointments || contact.created_by === ctx.user.id;
 
   return (
@@ -69,12 +79,6 @@ export default async function PatientPage({ params }: PageProps<"/pacientes/[id]
               <span className="break-all">{contact.email}</span>
             </li>
           ) : null}
-          {pets.length ? (
-            <li className="flex items-center gap-2">
-              <PawPrint className="size-4 text-muted" aria-hidden />
-              Mascotas en sus citas: {pets.join(", ")}
-            </li>
-          ) : null}
         </ul>
       </Card>
 
@@ -82,9 +86,16 @@ export default async function PatientPage({ params }: PageProps<"/pacientes/[id]
         <CardHeader title="Citas" description={ctx.can.allAppointments ? undefined : "Solo se muestran tus citas con este paciente."} />
         {appointments && appointments.length > 0 ? (
           <ul className="divide-y divide-line">
+            <li aria-hidden className="hidden gap-3 bg-sunken px-5 py-2 text-[11px] font-semibold tracking-wider text-muted uppercase sm:flex">
+              <span className="w-36">Fecha</span>
+              <span className="flex-1">Servicio</span>
+              <span className="w-28">Área</span>
+              <span className="w-24 text-right">Estado</span>
+            </li>
             {appointments.map((a) => {
               const s = localParts(a.starts_at, tz);
               const e = localParts(a.ends_at, tz);
+              const area = areaOf(a.professional?.professional_type);
               return (
                 <li key={a.id}>
                   <Link href={agendaHref({ date: s.date, appointmentId: a.id })} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm hover:bg-sunken">
@@ -93,13 +104,27 @@ export default async function PatientPage({ params }: PageProps<"/pacientes/[id]
                     </span>
                     <span className="min-w-0 flex-1">
                       {a.service?.name}
-                      {a.pet_name ? ` · ${a.pet_name}` : ""}
                       <span className="flex items-center gap-1.5 text-xs text-muted">
                         <span aria-hidden className="size-2 rounded-full" style={{ background: a.professional?.color }} />
                         {a.professional?.display_name}
                       </span>
                     </span>
-                    <StatusBadge status={a.status} />
+                    <span className="flex w-28 items-center gap-1.5 text-xs font-medium text-ink-soft">
+                      {area ? (
+                        <>
+                          <span
+                            aria-hidden
+                            className={`size-2 shrink-0 rounded-full ${area.color ? "" : "bg-stone-400"}`}
+                            style={area.color ? { background: area.color } : undefined}
+                          />
+                          <span className="sr-only">Área: </span>
+                          {area.label}
+                        </>
+                      ) : null}
+                    </span>
+                    <span className="flex w-24 justify-end">
+                      <StatusBadge status={a.status} />
+                    </span>
                   </Link>
                 </li>
               );

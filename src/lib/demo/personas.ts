@@ -17,7 +17,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [
   {
     id: "a0000000-0000-4000-8000-000000000002",
     key: "recepcion",
-    label: "Recepción · Clínica Arboleda (y admin de Veterinaria Patitas)",
+    label: "Recepción · Clínica Arboleda (y admin de Centro de Nutrición Vital)",
     name: "Mario Pérez",
     email: "recepcion@clinica-arboleda.test",
   },

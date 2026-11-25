@@ -78,20 +78,6 @@ export async function searchContacts(organizationId: string, query: string): Pro
   return ok((data ?? []).map(({ id, full_name, phone, email }) => ({ id, full_name, phone, email })));
 }
 
-/** Nombres de mascota usados antes por un tutor (solo citas visibles para la cuenta). */
-export async function contactPetNames(organizationId: string, contactId: string): Promise<string[]> {
-  const { ctx, mismatch } = await requireWorkspace(organizationId);
-  if (mismatch || !uuid.safeParse(contactId).success) return [];
-  const { data } = await ctx.supabase
-    .from("appointments")
-    .select("pet_name")
-    .eq("contact_id", contactId)
-    .not("pet_name", "is", null)
-    .order("starts_at", { ascending: false })
-    .limit(30);
-  return [...new Set((data ?? []).map((r) => r.pet_name!).filter(Boolean))];
-}
-
 // ---------------------------------------------------------------------------
 // Citas
 // ---------------------------------------------------------------------------
@@ -103,7 +89,6 @@ const createSchema = z.object({
   date: localDate,
   time: localTime,
   status: z.enum(["pending", "confirmed"]),
-  petName: z.string().trim().max(80, "Máximo 80 caracteres.").optional(),
   notes: z.string().trim().max(500, "Máximo 500 caracteres.").optional(),
   idempotencyKey: uuid,
 });
@@ -126,7 +111,6 @@ export async function createAppointment(input: z.input<typeof createSchema>): Pr
       p_local_date: v.date,
       p_local_time: v.time,
       p_status: v.status,
-      p_pet_name: v.petName || null,
       p_notes: v.notes || null,
       p_idempotency_key: v.idempotencyKey,
     });
@@ -199,7 +183,6 @@ const detailsSchema = z.object({
   organizationId: uuid,
   appointmentId: uuid,
   notes: z.string().trim().max(500, "Máximo 500 caracteres."),
-  petName: z.string().trim().max(80, "Máximo 80 caracteres."),
 });
 
 export async function updateAppointmentDetails(input: z.input<typeof detailsSchema>): Promise<ActionResult> {
@@ -210,7 +193,7 @@ export async function updateAppointmentDetails(input: z.input<typeof detailsSche
   if (mismatch) return fail(WORKSPACE_MISMATCH, { code: "workspace_mismatch" });
   const { data, error } = await ctx.supabase
     .from("appointments")
-    .update({ notes: v.notes || null, pet_name: v.petName || null })
+    .update({ notes: v.notes || null })
     .eq("id", v.appointmentId)
     .select("id");
   if (error || !data?.length) {
@@ -244,7 +227,7 @@ export async function getAppointment(organizationId: string, appointmentId: stri
   const { data, error } = await ctx.supabase
     .from("appointments")
     .select(
-      "id, professional_id, service_id, contact_id, pet_name, status, starts_at, ends_at, notes, professional:professionals(display_name, color), service:services(name), contact:contacts(full_name, phone, email)",
+      "id, professional_id, service_id, contact_id, status, starts_at, ends_at, notes, professional:professionals(display_name, color), service:services(name), contact:contacts(full_name, phone, email)",
     )
     .eq("id", appointmentId)
     .eq("organization_id", ctx.workspace.id)
@@ -264,7 +247,6 @@ export async function getAppointment(organizationId: string, appointmentId: stri
     contact_name: data.contact?.full_name ?? "",
     contact_phone: data.contact?.phone ?? null,
     contact_email: data.contact?.email ?? null,
-    pet_name: data.pet_name,
     status: data.status,
     starts_at: data.starts_at,
     ends_at: data.ends_at,

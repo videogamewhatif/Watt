@@ -14,22 +14,59 @@ export function permissionsFor(role: MemberRole) {
     viewCatalog: role === "admin" || role === "reception",
     /** Ver y gestionar las citas de todos los profesionales del espacio. */
     allAppointments: role === "admin" || role === "reception",
+    /** Abrir y cerrar turnos de caja, cobrar y registrar entradas y salidas de efectivo. */
+    operateCash: role === "admin" || role === "reception",
+    /** Cancelar cobros ya registrados (siempre con motivo). */
+    voidCharges: role === "admin",
+    /** Reportes de finanzas: ventas, ingresos, cortes de caja y auditoría de cobros. */
+    financialReports: role === "admin",
+    /** Reportes de operación: citas, profesionales, pacientes y citas por cobrar. */
+    operationalReports: role === "admin",
   };
 }
 
 export type Permissions = ReturnType<typeof permissionsFor>;
 
-export type NavItem = { href: string; label: string; icon: "home" | "calendar" | "users" | "contacts" | "services" | "settings" };
+export type NavLink = { href: string; label: string };
+/**
+ * Bloque de la barra lateral:
+ * - general: Inicio, arriba de todo.
+ * - area: lo que cambia con el área de atención elegida (Hospital, Dentista, …).
+ * - clinic: lo que es igual para toda la clínica, sin importar el área.
+ * - settings: fijo abajo.
+ */
+export type NavSection = "general" | "area" | "clinic" | "settings";
+export type NavItem = NavLink & {
+  icon: "home" | "calendar" | "schedule" | "users" | "contacts" | "cash" | "services" | "reports" | "settings";
+  section: NavSection;
+  children?: NavLink[];
+};
 
-export function navigationFor(role: MemberRole): NavItem[] {
+/** Submenú de Ventas. */
+export const SALES_NAV: NavLink[] = [
+  { href: "/ventas/caja", label: "Caja" },
+  { href: "/ventas/mis-ventas", label: "Mis ventas" },
+  { href: "/ventas/precorte", label: "Precorte" },
+];
+
+/**
+ * `ownSchedule`: la cuenta tiene perfil profesional en el espacio, así que ve
+ * «Mi horario» (su horario semanal y bloqueos) justo debajo de Agenda.
+ */
+export function navigationFor(role: MemberRole, { ownSchedule = false }: { ownSchedule?: boolean } = {}): NavItem[] {
   const can = permissionsFor(role);
   const items: NavItem[] = [
-    { href: "/inicio", label: "Inicio", icon: "home" },
-    { href: "/agenda", label: "Agenda", icon: "calendar" },
+    { href: "/inicio", label: "Inicio", icon: "home", section: "general" },
+    { href: "/agenda", label: "Agenda", icon: "calendar", section: "area" },
   ];
-  if (can.viewCatalog) items.push({ href: "/profesionales", label: "Profesionales", icon: "users" });
-  items.push({ href: "/pacientes", label: can.allAppointments ? "Pacientes" : "Mis pacientes", icon: "contacts" });
-  if (can.viewCatalog) items.push({ href: "/servicios", label: "Servicios", icon: "services" });
-  items.push({ href: "/configuracion", label: "Configuración", icon: "settings" });
+  // Es personal: no cambia con el área elegida.
+  if (ownSchedule) items.push({ href: "/mi-horario", label: "Mi horario", icon: "schedule", section: "general" });
+  if (can.viewCatalog) items.push({ href: "/profesionales", label: "Profesionales", icon: "users", section: "area" });
+  items.push({ href: "/pacientes", label: can.allAppointments ? "Pacientes" : "Mis pacientes", icon: "contacts", section: "clinic" });
+  if (can.operateCash) items.push({ href: "/ventas", label: "Ventas", icon: "cash", section: "clinic", children: SALES_NAV });
+  if (can.viewCatalog) items.push({ href: "/servicios", label: "Servicios", icon: "services", section: "clinic" });
+  // Quien atiende consultas siempre tiene al menos su propio reporte de actividad.
+  if (can.financialReports || can.operationalReports || ownSchedule) items.push({ href: "/reportes", label: "Reportes", icon: "reports", section: "clinic" });
+  items.push({ href: "/configuracion", label: "Configuración", icon: "settings", section: "settings" });
   return items;
 }

@@ -3,18 +3,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LinkButton } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/ui/layout";
+import { getPracticeContext } from "@/features/practice/queries";
 import { getAppContext } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Profesionales" };
 
 export default async function ProfessionalsPage() {
   const ctx = await getAppContext();
-  const [{ data: professionals, error }, { data: types }, { data: links }, { data: rules }] = await Promise.all([
+  const { areas, active: area } = await getPracticeContext();
+  const [{ data: allProfessionals, error }, { data: types }, { data: links }, { data: rules }] = await Promise.all([
     ctx.supabase.from("professionals").select("*").eq("organization_id", ctx.workspace.id).order("active", { ascending: false }).order("display_name"),
     ctx.supabase.from("professional_types").select("code, label"),
     ctx.supabase.from("professional_services").select("professional_id").eq("organization_id", ctx.workspace.id),
     ctx.supabase.from("availability_rules").select("professional_id").eq("organization_id", ctx.workspace.id),
   ]);
+  // Con un área elegida solo se listan los profesionales de esa área.
+  const professionals = area ? (allProfessionals ?? []).filter((p) => p.professional_type === area) : allProfessionals;
+  const activeArea = area ? areas.find((a) => a.key === area) : null;
   const typeLabel = Object.fromEntries((types ?? []).map((t) => [t.code, t.label]));
   const count = (rows: { professional_id: string }[] | null, id: string) => (rows ?? []).filter((r) => r.professional_id === id).length;
 
@@ -22,7 +27,16 @@ export default async function ProfessionalsPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Profesionales"
-        description="Personas cuya agenda se administra. Pueden existir sin cuenta de acceso."
+        description={
+          activeArea ? (
+            <>
+              <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: activeArea.color }} />
+              Mostrando solo el área {activeArea.label}. Cambia de área en el selector de la barra lateral.
+            </>
+          ) : (
+            "Personas cuya agenda se administra. Pueden existir sin cuenta de acceso."
+          )
+        }
         actions={
           ctx.can.manageCatalog ? (
             <LinkButton href="/profesionales/nuevo" icon={<Plus className="size-4" aria-hidden />}>
@@ -39,7 +53,7 @@ export default async function ProfessionalsPage() {
             title="Aún no hay profesionales"
             action={ctx.can.manageCatalog ? <LinkButton href="/profesionales/nuevo">Registrar al primer profesional</LinkButton> : null}
           >
-            Registra médicos, dentistas, nutriólogos, veterinarios u otros profesionales para administrar su agenda.
+            Registra médicos, nutriólogos, psicólogos, dentistas, optometristas u otros profesionales para administrar su agenda.
           </EmptyState>
         </div>
       ) : (

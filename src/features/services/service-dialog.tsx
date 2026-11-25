@@ -10,7 +10,7 @@ import { Checkbox, Field, Textarea, TextField } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { saveService } from "./actions";
 
-type Service = { id: string; name: string; duration_minutes: number; description: string | null; active: boolean; professional_ids: string[] };
+type Service = { id: string; name: string; duration_minutes: number; price: number; description: string | null; active: boolean; professional_ids: string[] };
 
 export function ServiceDialog({
   organizationId,
@@ -24,8 +24,8 @@ export function ServiceDialog({
   const router = useRouter();
   const { notify } = useToast();
   const [open, setOpen] = useState(false);
-  const blank = { name: "", duration: "30", description: "", active: true, professionalIds: professionals.length === 1 ? [professionals[0].id] : [] };
-  const fromService = (s: Service) => ({ name: s.name, duration: String(s.duration_minutes), description: s.description ?? "", active: s.active, professionalIds: s.professional_ids });
+  const blank = { name: "", duration: "30", price: "0", description: "", active: true, professionalIds: professionals.length === 1 ? [professionals[0].id] : [] };
+  const fromService = (s: Service) => ({ name: s.name, duration: String(s.duration_minutes), price: String(s.price), description: s.description ?? "", active: s.active, professionalIds: s.professional_ids });
   const [values, setValues] = useState(service ? fromService(service) : blank);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +67,7 @@ export function ServiceDialog({
                     id: service?.id ?? null,
                     name: values.name,
                     durationMinutes: values.duration,
+                    price: values.price,
                     description: values.description,
                     active: values.active,
                     professionalIds: values.professionalIds,
@@ -102,6 +103,19 @@ export function ServiceDialog({
             onChange={(e) => setValues((v) => ({ ...v, duration: e.target.value }))}
             error={errors.durationMinutes}
             hint={service ? "Si cambias la duración, las citas ya registradas conservan su hora final." : undefined}
+            className="max-w-48"
+          />
+          <TextField
+            label="Precio de lista (MXN)"
+            required
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={values.price}
+            onChange={(e) => setValues((v) => ({ ...v, price: e.target.value }))}
+            error={errors.price}
+            hint="Es lo que cobra la caja. Cambiarlo no modifica cobros ya registrados."
             className="max-w-48"
           />
           <Field label="Descripción" hint="Opcional." error={errors.description}>
