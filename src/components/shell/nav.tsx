@@ -9,8 +9,10 @@ import type { NavItem, NavLink, NavSection } from "@/lib/permissions";
 
 const ICONS = { home: Home, calendar: CalendarDays, schedule: CalendarClock, users: Stethoscope, contacts: Contact, cash: Wallet, services: ClipboardList, reports: ChartColumn, settings: Settings };
 
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isActive(pathname: string, href: string, link?: Pick<NavLink, "exact" | "alsoActive">) {
+  if (link?.exact) return pathname === href;
+  const match = (h: string) => pathname === h || pathname.startsWith(`${h}/`);
+  return match(href) || Boolean(link?.alsoActive?.some(match));
 }
 
 /** Árbol de menús: los grupos con submenú se despliegan y se pliegan. */
@@ -60,7 +62,7 @@ function NavTree({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
             </button>
             <ul id={groupId} hidden={!open} className="mt-0.5 ml-5 space-y-0.5 border-l border-line pl-2">
               {item.children.map((child) => {
-                const childActive = isActive(pathname, child.href);
+                const childActive = isActive(pathname, child.href, child);
                 return (
                   <li key={child.href}>
                     <Link

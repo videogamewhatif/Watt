@@ -11,6 +11,10 @@ import { ReportIcon } from "@/features/reports/components/report-icon";
 import { ReportView } from "@/features/reports/components/report-view";
 import { csvHref, effectiveFilters, parseReportFilters, periodLabel } from "@/features/reports/params";
 import { loadReport, reportProfessionalOptions } from "@/features/reports/queries";
+import { LockedFeature } from "@/features/billing/components/subscription-feature-gate";
+import { checkFeature } from "@/features/billing/entitlements";
+import { featureLabel } from "@/features/billing/presenter";
+import { getWorkspaceEntitlements } from "@/features/billing/server";
 import { getAppContext } from "@/lib/session";
 import { formatInstant, todayIn } from "@/lib/tz";
 
@@ -25,6 +29,19 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
   if (!def) notFound();
   const ctx = await getAppContext();
   if (!canViewReport(def, ctx)) notFound();
+  const plan = checkFeature(await getWorkspaceEntitlements(), def.feature);
+  if (!plan.allowed) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <Link href="/reportes" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">
+          <ArrowLeft className="size-4" aria-hidden />
+          Reportes
+        </Link>
+        <PageHeader title={def.title} description={def.description} />
+        <LockedFeature title={featureLabel(def.feature)} message={plan.message} canManageBilling={ctx.can.manageBilling} />
+      </div>
+    );
+  }
 
   const tz = ctx.workspace.timezone;
   const [{ areas }, professionals] = await Promise.all([getPracticeContext(), def.filters.professional ? reportProfessionalOptions(ctx) : Promise.resolve([])]);

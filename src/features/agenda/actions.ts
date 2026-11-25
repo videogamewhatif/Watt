@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type ActionResult, fail, fieldErrorsFrom, ok } from "@/lib/action-result";
 import type { AgendaAppointment, AppointmentEventType, AppointmentStatus, ContactRow } from "@/lib/database.types";
 import { errorCode, errorMessage, logError, SLOT_ERRORS } from "@/lib/errors";
+import { featureError } from "@/features/billing/server";
 import { requireWorkspace, WORKSPACE_MISMATCH } from "@/lib/session";
 import { addDays, isLocalDate, isTime, localParts } from "@/lib/tz";
 
@@ -101,6 +102,9 @@ export async function createAppointment(input: z.input<typeof createSchema>): Pr
   const v = parsed.data;
   const { ctx, mismatch } = await requireWorkspace(v.organizationId);
   if (mismatch) return fail(WORKSPACE_MISMATCH, { code: "workspace_mismatch" });
+  // Suscripción en modo de consulta (impago, cancelada o vencida): no se agendan citas nuevas.
+  const blocked = await featureError("module.agenda", { write: true });
+  if (blocked) return fail(blocked, { code: "subscription_read_only" });
 
   // La base valida disponibilidad, permisos y traslapes; calcula la hora final.
   const { data, error } = await ctx.supabase

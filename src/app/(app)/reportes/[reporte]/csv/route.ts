@@ -4,6 +4,8 @@ import { canViewReport, findReport } from "@/features/reports/catalog";
 import { csvFilename, tableToCsv } from "@/features/reports/format";
 import { effectiveFilters, parseReportFilters } from "@/features/reports/params";
 import { loadReport } from "@/features/reports/queries";
+import { checkFeature } from "@/features/billing/entitlements";
+import { getWorkspaceEntitlements } from "@/features/billing/server";
 import { getAppContext } from "@/lib/session";
 import { todayIn } from "@/lib/tz";
 
@@ -16,6 +18,9 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/repor
   if (!def) return text("Reporte no encontrado.", 404);
   const ctx = await getAppContext();
   if (!canViewReport(def, ctx)) return text("Reporte no encontrado.", 404);
+  // Verificación del plan en el servidor (no basta con ocultar el enlace).
+  const plan = checkFeature(await getWorkspaceEntitlements(), def.feature);
+  if (!plan.allowed) return text(plan.message, 403);
 
   const search = request.nextUrl.searchParams;
   const { areas } = await getPracticeContext();

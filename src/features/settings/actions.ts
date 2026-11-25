@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { type ActionResult, fail, fieldErrorsFrom, ok } from "@/lib/action-result";
+import { capacityError } from "@/features/billing/server";
 import { errorMessage, logError } from "@/lib/errors";
 import { ACTIVE_WORKSPACE_COOKIE, getAppContext, requireWorkspace, WORKSPACE_MISMATCH } from "@/lib/session";
 import { getSiteUrl } from "@/lib/site-url";
@@ -64,6 +65,9 @@ export async function inviteMember(input: z.input<typeof inviteSchema>): Promise
   const v = parsed.data;
   const { ctx, mismatch } = await requireWorkspace(v.organizationId);
   if (mismatch) return fail(WORKSPACE_MISMATCH);
+  // Usuarios internos del plan (miembros + invitaciones vigentes), verificado en el servidor.
+  const limit = await capacityError(ctx, "users.max");
+  if (limit) return fail(limit, { code: "plan_limit" });
   const { data, error } = await ctx.supabase.rpc("create_invitation", {
     p_organization_id: ctx.workspace.id,
     p_email: v.email,

@@ -4,7 +4,10 @@ import type { Database } from "@/lib/database.types";
 import { DEMO_COOKIE, demoPersona } from "@/lib/demo/personas";
 import { hasSupabaseEnv, supabaseEnv } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/iniciar-sesion", "/registro", "/recuperar", "/auth"];
+// /precios, los dos primeros pasos de la contratación y el catálogo de planes
+// (lo consume el sitio público) se ven sin sesión; el webhook de la pasarela
+// llega sin sesión y se autentica con su firma.
+const PUBLIC_PATHS = ["/iniciar-sesion", "/registro", "/recuperar", "/auth", "/precios", "/suscripcion/seleccionar", "/suscripcion/registro", "/api/billing/webhook", "/api/billing/catalog"];
 
 export function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

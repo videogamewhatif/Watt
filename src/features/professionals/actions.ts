@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type ActionResult, fail, fieldErrorsFrom, ok } from "@/lib/action-result";
 import type { TimeOffKind } from "@/lib/database.types";
 import { errorCode, errorMessage, logError } from "@/lib/errors";
+import { capacityError } from "@/features/billing/server";
 import { requireWorkspace, WORKSPACE_MISMATCH } from "@/lib/session";
 import { addDays, isLocalDate, isTime, minutesOf, zonedToInstant } from "@/lib/tz";
 
@@ -33,6 +34,11 @@ export async function saveProfessional(input: z.input<typeof professionalSchema>
   const v = parsed.data;
   const { ctx, mismatch } = await requireWorkspace(v.organizationId);
   if (mismatch) return fail(WORKSPACE_MISMATCH);
+  // Alta nueva: límite de profesionales del plan (verificado en el servidor).
+  if (!v.id) {
+    const limit = await capacityError(ctx, "professionals.max");
+    if (limit) return fail(limit, { code: "plan_limit" });
+  }
   const values = {
     display_name: v.displayName,
     professional_type: v.professionalType,
@@ -64,6 +70,11 @@ export async function futureAppointmentsCount(organizationId: string, profession
 export async function setProfessionalActive(organizationId: string, professionalId: string, active: boolean): Promise<ActionResult<{ future: number }>> {
   const { ctx, mismatch } = await requireWorkspace(organizationId);
   if (mismatch) return fail(WORKSPACE_MISMATCH);
+  // Reactivar cuenta contra el límite del plan; desactivar siempre se permite.
+  if (active) {
+    const limit = await capacityError(ctx, "professionals.max");
+    if (limit) return fail(limit, { code: "plan_limit" });
+  }
   const { data, error } = await ctx.supabase.from("professionals").update({ active }).eq("id", professionalId).select("id");
   if (error || !data?.length) {
     logError("set_professional_active", error);

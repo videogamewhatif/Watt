@@ -4,7 +4,17 @@
 
 export const DEMO_COOKIE = "wattalis_demo";
 
-export type DemoPersona = { id: string; key: string; label: string; name: string; email: string };
+export type DemoPersona = {
+  id: string;
+  key: string;
+  label: string;
+  name: string;
+  email: string;
+  /** Rol de plataforma (equipo Wattalis). Independiente de los roles de cada clínica. */
+  platformRole?: "platform_admin";
+  /** Página a la que entra la persona. */
+  home?: string;
+};
 
 export const DEMO_PERSONAS: DemoPersona[] = [
   {
@@ -34,6 +44,23 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     label: "Consultorio independiente · Dr. Luis Herrera",
     name: "Luis Herrera",
     email: "luis.herrera@consultorio.test",
+  },
+  {
+    id: "a0000000-0000-4000-8000-000000000005",
+    key: "nueva",
+    label: "Cuenta nueva sin espacio · contratar un plan",
+    name: "Sofía Navarro",
+    email: "sofia.navarro@nuevo-cliente.test",
+    home: "/precios",
+  },
+  {
+    id: "a0000000-0000-4000-8000-000000000006",
+    key: "plataforma",
+    label: "Equipo Wattalis · administración de la plataforma",
+    name: "Equipo Wattalis",
+    email: "plataforma@wattalis.test",
+    platformRole: "platform_admin",
+    home: "/admin/suscripciones",
   },
 ];
 

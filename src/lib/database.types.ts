@@ -189,6 +189,8 @@ export type CashMovementRow = {
   created_by: string | null;
   created_at: string;
 };
+/** Equipo de Wattalis (rol de plataforma). Ver supabase/migrations/20261125090000_subscriptions.sql. */
+export type PlatformAdminRow = { user_id: string; role: "platform_admin" | "billing_support"; created_at: string; created_by: string | null };
 export type CashSessionTotals = {
   opening_amount: number;
   cash_sales: number;
@@ -374,6 +376,7 @@ export type Database = {
       charge_items: Table<ChargeItemRow, never>;
       payments: Table<PaymentRow, never>;
       cash_movements: Table<CashMovementRow, never>;
+      platform_admins: Table<PlatformAdminRow, never>;
     };
     Views: Record<string, never>;
     Functions: {

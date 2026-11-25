@@ -22,12 +22,25 @@ export function permissionsFor(role: MemberRole) {
     financialReports: role === "admin",
     /** Reportes de operación: citas, profesionales, pacientes y citas por cobrar. */
     operationalReports: role === "admin",
+    /**
+     * Suscripción y facturación del espacio (plan, cobros, métodos de pago).
+     * Independiente de lo que incluye el plan; el servicio de facturación lo
+     * vuelve a verificar en el servidor (ver features/billing/authz.ts).
+     */
+    manageBilling: role === "admin",
   };
 }
 
 export type Permissions = ReturnType<typeof permissionsFor>;
 
-export type NavLink = { href: string; label: string };
+export type NavLink = {
+  href: string;
+  label: string;
+  /** Solo activo en la ruta exacta (p. ej. «General» dentro de Configuración). */
+  exact?: boolean;
+  /** Otras rutas que también marcan este enlace como activo. */
+  alsoActive?: string[];
+};
 /**
  * Bloque de la barra lateral:
  * - general: Inicio, arriba de todo.
@@ -49,6 +62,12 @@ export const SALES_NAV: NavLink[] = [
   { href: "/ventas/precorte", label: "Precorte" },
 ];
 
+/** Submenú de Configuración para Administración. */
+export const SETTINGS_NAV: NavLink[] = [
+  { href: "/configuracion", label: "General", exact: true },
+  { href: "/configuracion/suscripcion", label: "Suscripción y facturación", alsoActive: ["/configuracion/facturacion"] },
+];
+
 /**
  * `ownSchedule`: la cuenta tiene perfil profesional en el espacio, así que ve
  * «Mi horario» (su horario semanal y bloqueos) justo debajo de Agenda.
@@ -67,6 +86,12 @@ export function navigationFor(role: MemberRole, { ownSchedule = false }: { ownSc
   if (can.viewCatalog) items.push({ href: "/servicios", label: "Servicios", icon: "services", section: "clinic" });
   // Quien atiende consultas siempre tiene al menos su propio reporte de actividad.
   if (can.financialReports || can.operationalReports || ownSchedule) items.push({ href: "/reportes", label: "Reportes", icon: "reports", section: "clinic" });
-  items.push({ href: "/configuracion", label: "Configuración", icon: "settings", section: "settings" });
+  items.push({
+    href: "/configuracion",
+    label: "Configuración",
+    icon: "settings",
+    section: "settings",
+    children: can.manageBilling ? SETTINGS_NAV : undefined,
+  });
   return items;
 }

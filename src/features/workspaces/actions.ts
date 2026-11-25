@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { type ActionResult, fail, fieldErrorsFrom } from "@/lib/action-result";
+import { startTrialForNewWorkspace } from "@/features/billing/server";
 import { errorMessage, logError } from "@/lib/errors";
 import { ACTIVE_WORKSPACE_COOKIE, getAuthUser, getWorkspaces } from "@/lib/session";
 
@@ -65,6 +66,7 @@ export async function createWorkspace(_prev: ActionResult | null, formData: Form
     logError("create_organization", error);
     return fail(errorMessage(error));
   }
+  await startTrialForNewWorkspace(data, { name: v.name, kind: v.kind, timezone: v.timezone, email: user.email ?? "", contactName: v.displayName || String(user.user_metadata?.full_name ?? "") });
   await rememberWorkspace(data);
   redirect("/inicio");
 }

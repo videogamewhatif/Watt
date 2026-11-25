@@ -21,6 +21,7 @@ Aplicación web privada para gestionar profesionales de salud humana y citas en 
 | **Pacientes o contactos** | Directorio administrativo (nombre + teléfono o correo), búsqueda, sugerencia de posibles duplicados sin fusionar y sin revelar contactos fuera de permisos, citas visibles por paciente. |
 | **Reportes** | Catálogo en «Reportes», filtrado por rol (Recepción no tiene acceso). **Finanzas** (Administración): *Ventas* (vendido, ticket promedio, descuentos y cancelaciones; por día/semana/mes, forma de pago y cajero), *Ingresos por concepto*, *Cortes de caja* (esperado contra contado, faltantes, sobrantes, entradas y salidas) y *Cancelaciones y descuentos* (auditoría con motivo y quién). **Operación** (Administración): *Citas* (estados, asistencia, pasadas sin marcar, por servicio y mapa de horas de mayor demanda), *Desempeño por profesional* (horas disponibles contra reservadas = ocupación, asistencia, pacientes; ingresos atribuidos solo para Administración), *Pacientes* (atendidos, primera vez contra recurrentes, más frecuentes, inasistencias, registros nuevos) y *Citas atendidas sin cobro*. **Mi actividad** para quien atiende consultas (solo sus citas y la ocupación de su horario, sin importes). Periodos preestablecidos o rango propio (hasta un año), filtros por área y profesional en la URL, impresión y descarga de cada tabla en CSV (UTF-8, abre en Excel). |
 | **Configuración** | Datos del espacio (nombre, tipo, zona horaria, intervalo de agenda), miembros y roles, invitaciones, nombre y contraseña de la cuenta. |
+| **Suscripciones (demostración)** | Página pública `/precios`, contratación en 6 pasos con pasarela **simulada** (sin cobros reales), Configuración → Suscripción y facturación (plan, cobros, métodos de pago de prueba, renovación, avisos), cambios de plan con prorrateo, cancelación y reactivación, límites por plan verificados en el servidor y panel global `/admin/suscripciones` para el equipo Wattalis. Detalle en [`docs/SUSCRIPCIONES.md`](docs/SUSCRIPCIONES.md). |
 
 Fuera de alcance en esta etapa (y sin botones inactivos que lo anuncien): directorio público, búsqueda de doctores, autoservicio de pacientes, facturación fiscal (CFDI), cobros parciales o a crédito, reembolsos a tarjeta, terminal de pago integrada, multimoneda, recetas, expediente clínico, teleconsulta, WhatsApp e IA.
 
@@ -65,6 +66,7 @@ Abre `http://localhost:3000` y pulsa **«Pruebas»** en la pantalla de inicio de
 - Se aplican los mismos permisos por rol y las mismas reglas de agenda (horarios, bloqueos, traslapes, estados), reimplementados en `src/lib/demo/` para este modo. La garantía real sigue siendo la base de datos.
 - Está activo con `npm run dev`. En un build de producción queda **desactivado**, salvo que definas `WATTALIS_DEMO=1` (útil solo para una vista previa sin datos reales).
 - No disponible en este modo: aceptar invitaciones, cambiar contraseña, registro e inicio de sesión reales.
+- **Suscripciones:** «Ver como» incluye una *cuenta nueva sin espacio* (para contratar desde `/precios`) y al *equipo Wattalis* (panel de la plataforma). La facturación también es ficticia y en memoria: no se procesan tarjetas ni se cobra nada. «Reiniciar datos» la reinicia. Escenarios paso a paso en [`docs/SUSCRIPCIONES.md`](docs/SUSCRIPCIONES.md#4-modo-demostración).
 
 ## Opción A · Supabase local (Supabase CLI + Docker)
 
@@ -201,7 +203,7 @@ src/
   proxy.ts                Renueva la sesión y protege las páginas internas.
   features/<módulo>/      Acciones de servidor, consultas y componentes por dominio:
                           agenda, professionals, services, patients, settings, workspaces, auth, dashboard,
-                          cash, practice, reports
+                          cash, practice, reports, billing (suscripciones)
   components/ui|shell/    Componentes accesibles reutilizables y estructura de la app.
   lib/                    Sesión y espacio activo, permisos, zona horaria, errores, tipos de BD.
   lib/demo/               Modo de prueba: datos ficticios en memoria (solo desarrollo).

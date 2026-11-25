@@ -2,6 +2,8 @@ import { DemoBanner } from "@/components/shell/demo-banner";
 import { UserMenu, WorkspaceSwitcher } from "@/components/shell/menus";
 import { BottomNav, SidebarNav } from "@/components/shell/nav";
 import { PracticeSwitcher } from "@/components/shell/practice-switcher";
+import { SubscriptionBanner } from "@/features/billing/components/subscription-banner";
+import { getWorkspaceEntitlements, getWorkspaceSubscriptionStatus } from "@/features/billing/server";
 import { getPracticeContext } from "@/features/practice/queries";
 import { Wordmark } from "@/components/ui/layout";
 import { ToastProvider } from "@/components/ui/toast";
@@ -11,10 +13,11 @@ import { getAppContext, getAuthUser } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAppContext();
-  const [{ demo }, practice] = await Promise.all([getAuthUser(), getPracticeContext()]);
+  const [{ demo }, practice, entitlements, subscription] = await Promise.all([getAuthUser(), getPracticeContext(), getWorkspaceEntitlements(), getWorkspaceSubscriptionStatus()]);
   const items = navigationFor(ctx.role, { ownSchedule: Boolean(ctx.ownProfessionalId) });
   // El área solo filtra a quien ve la agenda de todos; el rol Profesional ve la suya.
-  const showAreas = ctx.can.allAppointments && practice.areas.length > 0;
+  // Filtrar por áreas médicas es una función del plan (Empresarial o superior).
+  const showAreas = ctx.can.allAppointments && practice.areas.length > 0 && practice.multiAreaEnabled;
   const activeArea = practice.areas.find((a) => a.key === practice.active) ?? (practice.areas.length === 1 ? practice.areas[0] : null);
   const active = { id: ctx.workspace.id, name: ctx.workspace.name, role: ctx.role };
   const options = ctx.workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role }));
@@ -44,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <DemoBanner current={demo} personas={DEMO_PERSONAS} />
             </div>
           ) : null}
+          <SubscriptionBanner entitlements={entitlements} subscription={subscription} canManageBilling={ctx.can.manageBilling} timezone={ctx.workspace.timezone} />
           <header className="sticky top-0 z-30 print:hidden flex items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur sm:px-5">
             <Wordmark className="text-lg md:hidden" />
             {showAreas ? <PracticeSwitcher areas={practice.areas} active={practice.active} className="w-36 md:hidden" /> : null}

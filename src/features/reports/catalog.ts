@@ -1,6 +1,7 @@
 // Catálogo de reportes y quién puede verlos. Es solo presentación: los datos se
 // leen con la sesión de la persona, así que RLS limita lo que cada rol obtiene
 // aunque alguien escriba la URL a mano (p. ej. Profesional no lee la caja).
+import type { BooleanFeatureCode } from "@/features/billing/catalog";
 import type { Permissions } from "@/lib/permissions";
 
 export type ReportCategory = "finanzas" | "operacion" | "personal";
@@ -15,6 +16,11 @@ export type ReportDef = {
   icon: ReportIcon;
   /** Filtros adicionales al periodo. */
   filters: { area: boolean; professional: boolean };
+  /**
+   * Función del plan que lo incluye (permiso comercial, independiente del rol).
+   * El rol decide quién lo ve; el plan decide si el espacio lo tiene contratado.
+   */
+  feature: BooleanFeatureCode;
 };
 
 export const REPORTS = [
@@ -25,6 +31,7 @@ export const REPORTS = [
     category: "finanzas",
     icon: "sales",
     filters: { area: false, professional: false },
+    feature: "reports.financial",
   },
   {
     key: "ingresos-por-concepto",
@@ -33,6 +40,7 @@ export const REPORTS = [
     category: "finanzas",
     icon: "concepts",
     filters: { area: false, professional: false },
+    feature: "reports.financial",
   },
   {
     key: "cortes-de-caja",
@@ -41,6 +49,7 @@ export const REPORTS = [
     category: "finanzas",
     icon: "closings",
     filters: { area: false, professional: false },
+    feature: "reports.financial",
   },
   {
     key: "cancelaciones-y-descuentos",
@@ -49,6 +58,7 @@ export const REPORTS = [
     category: "finanzas",
     icon: "audit",
     filters: { area: false, professional: false },
+    feature: "admin.advanced",
   },
   {
     key: "citas",
@@ -57,6 +67,7 @@ export const REPORTS = [
     category: "operacion",
     icon: "appointments",
     filters: { area: true, professional: true },
+    feature: "reports.basic",
   },
   {
     key: "profesionales",
@@ -65,6 +76,7 @@ export const REPORTS = [
     category: "operacion",
     icon: "professionals",
     filters: { area: true, professional: false },
+    feature: "reports.advanced",
   },
   {
     key: "pacientes",
@@ -73,6 +85,7 @@ export const REPORTS = [
     category: "operacion",
     icon: "patients",
     filters: { area: true, professional: true },
+    feature: "reports.advanced",
   },
   {
     key: "citas-por-cobrar",
@@ -81,6 +94,7 @@ export const REPORTS = [
     category: "operacion",
     icon: "receivables",
     filters: { area: true, professional: true },
+    feature: "reports.basic",
   },
   {
     key: "mi-actividad",
@@ -89,6 +103,7 @@ export const REPORTS = [
     category: "personal",
     icon: "activity",
     filters: { area: false, professional: false },
+    feature: "reports.basic",
   },
 ] as const satisfies readonly ReportDef[];
 
